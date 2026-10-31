@@ -368,6 +368,16 @@ def capacity_ml(desc, lo=1000, hi=20000):
             re.findall(r"(\d{1,2})()()(?:L(?![\w/])|\s+L(?=\s+(?:capacity|absorb)))", desc):  # '12L capacity'
         vals.append(int(round((int(whole) + (float("0." + frac) if frac else 0) + (0.5 if half else 0)) * 1000)))
     vals = [v for v in vals if lo <= v <= hi]
+    if vals:
+        return max(vals)
+    return oz_ml(desc, lo, hi)
+
+
+def oz_ml(desc, lo=1000, hi=20000):
+    """'Absorbs up to 115 fl oz' -> 3400 mL. Only an oz figure after 'absorb...'/'capacity'/'holds' (oz is also a weight)."""
+    vals = [int(round(float(x) * 29.5735 / 10.0)) * 10
+            for x in re.findall(r"(?:absor\w*|capacity|holds?)[^.;]{0,40}?(\d{1,3}(?:\.\d)?)\s*(?:fl\.?\s*)?oz\b", desc, re.I)]
+    vals = [v for v in vals if lo <= v <= hi]
     return max(vals) if vals else None
 
 

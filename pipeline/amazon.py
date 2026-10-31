@@ -49,6 +49,8 @@ for _canon, _pat in (("Sunkiss", r"sunkiss\b"), ("Landofgenie", r"land ?of ?geni
 CAP_BY_SIZE = {
     # Sunkiss TrustPlus Adult Diapers with Tabs, from the product image (owner, 2026-10-31)
     "diaper|sunkiss|trustplus": {"S": 1300, "M": 1600, "L": 2000, "XL": 2300, "XXL": 2600},
+    # Abena Slip Flexi-Fit Premium M-L4: 'Absorbs up to 115 fl oz' in the Amazon description (B0CP6JDR16, owner 2026-10-31)
+    "diaper|abena|4 fit flexi level premium slip": {"M/L": 3400},
 }
 AB_BRANDS = {"Sunkiss", "Little for Big", "Rearz", "Tykables", "ABUniverse", "LNGU", "Kiddo", "Crinklz", "Cuddlz",
              "Landofgenie", "Bambino"}

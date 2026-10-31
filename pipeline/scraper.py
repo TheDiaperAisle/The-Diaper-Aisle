@@ -551,6 +551,7 @@ KEY_ALIAS = {
     "diaper|abena|abri form original plus x": "diaper|abena|abri comfort form",
     "diaper|abena|abri form premium": "diaper|abena|abri comfort form",
     "diaper|abena|abri form": "diaper|abena|abri comfort form",   # Amazon 'Abri-Form Premium XL4'
+    "diaper|abena|abri comfort foil form white": "diaper|abena|abri comfort form",   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
 }
 
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
@@ -579,8 +580,8 @@ def abena_level(r):
     m = ABENA_CODE.search(r.get("name") or "")
     if m:
         return m.group(2)
-    if re.search(r"\bx[- ]?plus\b", r.get("name") or "", re.I) and r.get("pid") == "diaper|abena|abri comfort form":
-        return "4"   # Abri-Form 'X Plus' is the old name of Abri-Form Comfort level 4
+    if r.get("pid") == "diaper|abena|abri comfort form":
+        return "4"   # every store listing of this merged product is level 4 ('X Plus' = old name; owner 2026-10-31)
     return None
 
 

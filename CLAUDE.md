@@ -46,6 +46,7 @@ Run everything from the repo root. Needs Python 3 with Pillow: `python3 -m pip i
 9. Final reply: the report, plus one line on which emails went out.
 
 ## Owner rules for the report (2026-10-30)
+- When asking the owner to check or clarify a product, include a link to its product page at each store involved (owner 2026-10-31).
 - Mention only what changed and what is broken. No "everything worked" lines, no row counts, no "data published" line.
 - Quiet day banner: "Dip Aisle: no price or stock changes today."
 - PROBLEMS cover: store failures, per-store row/product counts down more than 10%, jumps in rows with no pack quantity, price moves over 50% (likely parse errors), scraper crashes, failed Rearz price lookups or thumbnail downloads, products that lost a capacity they had yesterday because their page could not be read, a failed stock check, and a failed publish.

@@ -285,14 +285,18 @@ def main(out, prev):
     amz = list(found.values()) + carried
 
     # product facts from the other stores (name, capacity) when the product matches
-    by_pid = {}
+    by_pid, by_ck, pid_cap = {}, {}, {}
     for r in rows:
         by_pid.setdefault(r["pid"], r)
+        if r.get("cap"):
+            pid_cap[r["pid"]] = max(pid_cap.get(r["pid"], 0), r["cap"])   # sizes no store states: the highest figure
+        if r.get("cap"):
+            by_ck.setdefault((r["pid"], r["size"]), r)   # capacities can differ by size (Abena M4 3600 / L4 4000 mL)
     for r in amz:
         o = by_pid.get(r["pid"])
         if o:
             r["line"] = o["line"]
-            r["cap"] = r["cap"] or o.get("cap")
+            r["cap"] = r["cap"] or (by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])
         r["line"] = S.LINE_NAME.get(r["pid"], r["line"])
         S.abena_names([r])
         sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])

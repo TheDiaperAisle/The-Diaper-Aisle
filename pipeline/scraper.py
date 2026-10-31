@@ -371,6 +371,44 @@ def capacity_ml(desc, lo=1000, hi=20000):
     return max(vals) if vals else None
 
 
+# per-size capacities: 'S: Max absorbency up to 3600mL ... L/XL: Max absorbency up to 4000mL' (Healthwick) or a
+# table 'Medium 28"-44" 3600ml ... Large 39"-59" 4000ml' (AgeComfort). Labels: size words, or abbreviations
+# followed by ':' (a bare 'L' is too common to trust).
+_SZ_WORD = r"(?:xx-?large|x-?large|extra[\s-]*large|x-?small|extra[\s-]*small|small|medium|large)"
+_SZ_ABBR = r"(?:XXS|XS|S/M|M/L|L/XL|XXL|XL|S|M|L)(?=\s*:)"
+_SZ_LABEL = re.compile(r"\b(" + _SZ_WORD + r"(?:\s*/\s*" + _SZ_WORD + r")?|" + _SZ_ABBR + r")", re.I)
+_ML = re.compile(r"(\d{1,2}[,\. ]\d{3}|\d{3,5})\s*(?:ml|millilit)", re.I)
+_SPLIT = {"S/M": ("S", "M"), "M/L": ("M", "L"), "L/XL": ("L", "XL")}
+
+
+def caps_by_size(desc, lo=1000, hi=20000):
+    """{size: mL} when the description gives a capacity per size (at least two sizes), else {}."""
+    out, last, loose = {}, 0, []
+    for m in _ML.finditer(desc):
+        ml = int(re.sub(r"[,\. ]", "", m.group(1)))
+        before = desc[max(last, m.start() - 60):m.start()]   # only text after the previous figure
+        last = m.end()
+        if not lo <= ml <= hi:
+            continue
+        labels = list(_SZ_LABEL.finditer(before))
+        if not labels:
+            loose.append(ml)
+            continue
+        lab = labels[-1].group(1)
+        sz = size_of(re.sub(r"extra[\s-]*small", "XS", re.sub(r"\s*/\s*", "/", lab), flags=re.I)) \
+            if not re.fullmatch(_SZ_ABBR.split("(?=")[0], lab) else lab.upper()
+        if not sz or sz in out:
+            continue
+        out[sz] = ml
+        for part in _SPLIT.get(sz, ()):
+            out.setdefault(part, ml)
+    # NorthShore: 'ISO max absorbency up to 6500ml. XS: 880 mL, S: 1060 mL ...' - the per-size figures are a
+    # different, smaller measure than the ISO figure every other product uses, so don't use them
+    if out and loose and max(loose) > 1.5 * max(out.values()):
+        return {}
+    return out if len({k for k in out if k not in _SPLIT}) >= 2 or len(out) >= 3 else {}
+
+
 ABS_RANK = {"Light": 1, "Moderate": 2, "Heavy": 3, "Maximum": 4}
 
 
@@ -551,12 +589,14 @@ KEY_ALIAS = {
     "diaper|abena|abri form original plus x": "diaper|abena|abri comfort form",
     "diaper|abena|abri form premium": "diaper|abena|abri comfort form",
     "diaper|abena|abri form": "diaper|abena|abri comfort form",   # Amazon 'Abri-Form Premium XL4'
-    "diaper|abena|abri comfort foil form white": "diaper|abena|abri comfort form",   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
+    "diaper|abena|abri comfort foil form white": "diaper|abena|abri comfort form",
+    "diaper|abena|4 abri backed comfort form level plastic": "diaper|abena|abri comfort form",   # Amazon 'Abri-Form Comfort Plastic-Backed'; all Abri-Form Comfort is plastic-backed   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
 }
 
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
 LINE_NAME = {
     "diaper|abena|abri comfort form": "Abri-Form Comfort",
+    "pullup|abena|abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (level not stated)
 }
 
 
@@ -566,6 +606,7 @@ LINE_NAME = {
 # names ('X Plus' = level 4). The pid stays the same; only the display name ('line') gets the code.
 ABENA_CODE = re.compile(r"\b(XXS|XS|S|M|L|XL|XXL|S-M|M-L|L-XL)([0-4])\b", re.I)
 ABENA_CODE_SIZE = {"S-M": "S/M", "M-L": "M/L", "L-XL": "L/XL"}
+ABENA_LEVEL4_ONLY = {"diaper|abena|abri comfort form"}   # merged Abri-Form Comfort: every listing is level 4
 
 
 def is_abena(r):
@@ -580,14 +621,21 @@ def abena_level(r):
     m = ABENA_CODE.search(r.get("name") or "")
     if m:
         return m.group(2)
-    if r.get("pid") == "diaper|abena|abri comfort form":
+    if r.get("pid") in ABENA_LEVEL4_ONLY:
         return "4"   # every store listing of this merged product is level 4 ('X Plus' = old name; owner 2026-10-31)
     return None
 
 
 def abena_fix_size(r):
-    """'Abri-Flex ... XS1' / 'Abri-Form Premium XL4' with no size option: take the size from the code. Rebuilds the id."""
-    if not is_abena(r) or r["size"] != "One size":
+    """'Abri-Flex ... XS1' / 'Abri-Form Premium XL4' with no size option: take the size from the code (rebuilds
+    the id). Also puts the level in the pid when the name has one, so Abri-Flex M1 and M2 are not compared."""
+    if not is_abena(r):
+        return r
+    lvl = abena_level(r)
+    cat, brand, toks = r["pid"].split("|", 2)
+    if lvl and r["pid"] not in ABENA_LEVEL4_ONLY and not re.search(r"\d", toks):
+        r["pid"] = f"{cat}|{brand}|{' '.join(sorted(set(toks.split()) | {lvl}))}"
+    if r["size"] != "One size":
         return r
     m = ABENA_CODE.search(r.get("name") or "")
     if m:
@@ -789,6 +837,7 @@ def parse_store(store, base, products):
         cap = capacity_ml(desc, *lo_hi)
         if cap is None and VIA.get(store) is None:
             cap = page_capacity(base, p["handle"], *lo_hi)
+        size_caps = caps_by_size(desc, *lo_hi)
         dm = re.search(r"(\d+(?:\.\d+)?)\s*[\"”]\s*x\s*(\d+(?:\.\d+)?)\s*[\"”]", desc)
         dims = f'{dm.group(1)}" x {dm.group(2)}"' if dm else None
         qt = qty_table(desc)
@@ -850,10 +899,19 @@ def parse_store(store, base, products):
                 "pid": product_key(brand, line, cat), "variant": variant,
                 "cat": cat, "dims": dims if (cat == "booster" and size == "One size") else None,
                 "style": style_of(p), "size": size, "pkg": pkg, "qty": qty, "price": price,
-                "cap": cap, "avail": avail, "img": img, "t": f"{store}|{p['handle']}",
+                "cap": size_caps.get(size, cap), "cap_size": size in size_caps,
+                "avail": avail, "img": img, "t": f"{store}|{p['handle']}",
                 "url": p.get("_url") or f"{base}/products/{p['handle']}?variant={v['id']}",
             }
     return list(rows.values())
+
+
+def best_cap(rs):
+    from collections import Counter
+    caps = Counter(r["cap"] for r in rs if r["cap"])
+    sized = {r["cap"] for r in rs if r["cap"] and r.get("cap_size")}
+    ranked = sorted(caps.items(), key=lambda kv: (kv[0] not in sized, -kv[1], -kv[0]))
+    return ranked[0][0] if ranked else None
 
 
 def harmonise(rows):
@@ -867,14 +925,18 @@ def harmonise(rows):
         names = Counter(r["line"] for r in rs if not r["name"].isupper()) or Counter(r["line"] for r in rs)
         line = sorted(names.items(), key=lambda kv: (-kv[1], -len(kv[0])))[0][0]
         line = LINE_NAME.get(pid, line)
-        caps = Counter(r["cap"] for r in rs if r["cap"])
-        cap = sorted(caps.items(), key=lambda kv: (-kv[1], -kv[0]))[0][0] if caps else None
+        # capacity per size: a figure a store gives for that size wins over a whole-product figure,
+        # then the most common, then the highest; sizes no store states fall back to the product figure
+        cap = best_cap(rs)
+        size_cap = {sz: best_cap([r for r in rs if r["size"] == sz]) for sz in {r["size"] for r in rs}}
         manual = CAP_MANUAL.get(pid) if not cap else None  # only when no store states it in text
         dims = Counter(r["dims"] for r in rs if r["dims"])
         for r in rs:
+            c = size_cap.get(r["size"]) or (max(r2["cap"] for r2 in rs if r2["cap"]) if cap else None)
             r["line"] = line
-            r["cap_src"] = "store" if r["cap"] == cap and r["cap"] else ("other store" if cap else ("manual" if manual else None))
-            r["cap"] = cap or manual
+            r["cap_src"] = "store" if r["cap"] == c and r["cap"] else ("other store" if c else ("manual" if manual else None))
+            r["cap"] = c or manual
+            r.pop("cap_size", None)
             if r["size"] == "One size" and r["cat"] == "booster" and not r["dims"] and len(dims) == 1:
                 r["dims"] = next(iter(dims))
     # same store, same product facts, same price -> keep one listing

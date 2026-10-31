@@ -73,6 +73,8 @@ Send each edition with the Gmail connector's send tool, one message per edition:
 - Rearz (`ca.rearz.ca`) is BigCommerce: sitemap → product pages → `/remote/v1/product-attributes/{id}` per size x pack for exact CAD price and stock. Don't take prices from the page HTML.
 - ABUniverse case rows (4 packs / 40, 25% off) come from the page's `diaper_add_case.js` widget. A bigger case at the same $/diaper is skipped.
 - Package: "Bag (10)" is one bag; only plural "Bags (n)" / "3 Bags (36)" / "Case" are cases.
+- Abena (owner 2026-10-31): names use size + level codes (`Slip Premium M4`, `Flexi-Fit M-L3`) via `abena_names`; the level is part of the pid so levels are never compared; AgeComfort "Abri Form Original X Plus", "Abri-Form Premium" and Healthwick "White Foil Comfort" are Abri-Form Comfort (level 4). Read the product descriptions when checking Abena: some stores give levels only as codes, and capacities differ by size (M4 3600 mL, L4 4000 mL).
+- Capacities per size: `caps_by_size` reads "M: ... 3600mL" lists and size tables from descriptions; a figure stated for a size beats a whole-product figure. NorthShore's per-size figures are a different measure from its ISO figure and are ignored.
 - Image-only capacities are in `CAP_MANUAL` (scraper) and `CAP_BY_SIZE` (amazon), owner-confirmed.
 - Hand-checked product merges are in `KEY_ALIAS`. Open question: Rearz "Tena Slip Maxi (European)" vs TENA "Slip Maxi" is not merged until checked.
 - Network: the run needs healthwick.ca, ca.abuniverse.com, mydips.ca, agecomfort.com, www.agecomfort.com, ca.rearz.ca, cdn11.bigcommerce.com, cdn.shopify.com, api.firecrawl.dev, m.media-amazon.com and github.com.

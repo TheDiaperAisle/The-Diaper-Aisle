@@ -596,7 +596,7 @@ KEY_ALIAS = {
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
 LINE_NAME = {
     "diaper|abena|abri comfort form": "Abri-Form Comfort",
-    "pullup|abena|abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (level not stated)
+    "pullup|abena|3 abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (all-caps title)
 }
 
 
@@ -607,6 +607,10 @@ LINE_NAME = {
 ABENA_CODE = re.compile(r"\b(XXS|XS|S|M|L|XL|XXL|S-M|M-L|L-XL)([0-4])\b", re.I)
 ABENA_CODE_SIZE = {"S-M": "S/M", "M-L": "M/L", "L-XL": "L/XL"}
 ABENA_LEVEL4_ONLY = {"diaper|abena|abri comfort form"}   # merged Abri-Form Comfort: every listing is level 4
+# levels shown only in the product photo (owner-checked), keyed by 'Store|handle'
+ABENA_LEVEL_MANUAL = {
+    "AgeComfort|abena-abriflex-pull-ups-m-by-bag": "3",   # Abri-Flex, photo says level 3 (owner 2026-10-31)
+}
 
 
 def is_abena(r):
@@ -614,6 +618,8 @@ def is_abena(r):
 
 
 def abena_level(r):
+    if r.get("t") in ABENA_LEVEL_MANUAL:
+        return ABENA_LEVEL_MANUAL[r["t"]]
     for text in (r.get("line") or "", r.get("name") or ""):
         m = re.search(r"\blevel\s*(\d)\b", text, re.I)
         if m:

@@ -1,0 +1,10 @@
+out/
+prev/
+email/
+scrape.log
+changes.json
+logo.b64
+firecrawl.key
+__pycache__/
+*.pyc
+.env

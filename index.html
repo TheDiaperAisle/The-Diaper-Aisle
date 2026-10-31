@@ -200,12 +200,12 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
 
   <section class="report" aria-labelledby="report-h">
     <div>
-      <h2 id="report-h">Spot something wrong?</h2>
-      <p>Prices, pack sizes, capacities and stock come straight from each store and are checked daily, but mistakes slip through. If a listing looks off, email us and we'll fix it. We'd also love your feedback on new features you'd like to see on the tracker. Using another email app? Copy the address and tell us which listing is wrong.</p>
+      <h2 id="report-h">Help us make the tracker better</h2>
+      <p>Spotted a price, pack size or stock status that looks off? Got an idea for a feature you'd like to see? Prices and stock are checked daily, but mistakes slip through, and we're always looking for ways to make the tracker more useful. Email us either way. Using another email app? Copy the address and tell us which listing is wrong or what you'd like added.</p>
     </div>
     <div class="report-actions">
       <span class="report-mail" id="report-mail">thediaperaisle@gmail.com</span>
-      <a class="btn btn-primary" id="report-link" href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=thediaperaisle@gmail.com&amp;su=Tracker%20correction" target="_blank" rel="noopener">Email us in Gmail ↗</a>
+      <a class="btn btn-primary" id="report-link" href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=thediaperaisle@gmail.com&amp;su=Tracker%20feedback" target="_blank" rel="noopener">Email us in Gmail ↗</a>
       <button class="btn btn-ghost" type="button" id="report-copy">Copy address</button>
     </div>
   </section>
@@ -352,11 +352,11 @@ function render(){
       <td><span class="badge">${esc(r.pkg)}</span></td>
       <td class="num">${r.qty ?? '<span class="muted">—</span>'}</td>
       <td class="num">${money(r.price)}${d}</td>
-      <td class="num unit">${unit(r.ppd)}</td>
-      <td class="num">${r.lowest ? '<span class="best">Lowest</span> ' : ""}${shipCell(r)}</td>
+      <td class="num">${unit(r.ppd)}</td>
+      <td class="num unit">${shipCell(r)}</td>
       <td class="num">${r.cap ? r.cap.toLocaleString()+" mL" : '<span class="muted">—</span>'}</td>
       <td class="num">${r.dpl!=null ? money(r.dpl) : (r.cap && r.qty && r.dpd==null) ? '<span class="muted" title="Shipping is quoted at checkout">quote</span>' : '<span class="muted">—</span>'}</td>
-      <td>${r.nst>1 ? `<span class="nstores">${r.nst} stores</span>` : '<span class="muted">1 store</span>'}</td>
+      <td>${r.lowest ? '<span class="best">Lowest</span> ' : ""}${r.nst>1 ? `<span class="nstores">${r.nst} stores</span>` : '<span class="muted">1 store</span>'}</td>
       <td><a class="go" href="${esc(r.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`;
   }).join("");
   $("#more").hidden = list.length <= S.limit;

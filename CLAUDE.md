@@ -41,7 +41,8 @@ Run everything from the repo root. Needs Python 3 with Pillow (`pip install pill
    `git add -A data && git -c user.name="The Diaper Aisle" -c user.email="thediaperaisle@gmail.com" commit -m "Data for <YYYY-MM-DD>" && git push origin main`.
    Commit only `data/`. If the push fails, it's a problem: "Public site not updated: <reason>. Today's price points are lost from the history unless this is fixed before tomorrow's run."
 7. Report: `python3 pipeline/changes.py ./prev ./out ./scrape.log > changes.json`. If step 6 failed or any step could not run, add it to `issues` in changes.json and to the PROBLEMS section of `report` (and to `banner`'s "N problems to check" count).
-8. Notify the owner. Send a push notification if a push tool is available, with `banner` as the first sentence and then `report`. Then send the emails (next section).
+8. Notify the owner, but only when something changed or there is a problem. On a quiet day (no changes and no problems) send no push and no email.
+   Otherwise send a push notification if a push tool is available, with `banner` as the first sentence and then `report`, then send the emails (next section).
 9. Final reply: the report, plus one line on which emails went out.
 
 ## Owner rules for the report (2026-10-30)
@@ -57,7 +58,7 @@ Build: `python3 pipeline/email_html.py --build changes.json <YYYY-MM-DD> ./email
 - `owner` edition: full report including PROBLEMS. To nicholas.dumoulin2@gmail.com only. Goes out when anything changed or there is any problem.
 - `public` edition: same report without problems. To the other recipients, all in To, one email. Goes out only when a price, stock or listing changed.
   Other recipients: drewlehman5@gmail.com
-- Quiet day: no email to anyone.
+- Quiet day (no changes and no problems): no email to anyone and no push notification (owner decision, 2026-10-31).
 
 Send each edition with the Gmail connector's send tool, one message per edition:
 - `subject` from plan.json; `htmlBody` = `email/<edition>.html` exactly as written; `body` = `email/<edition>.txt` exactly as written.

@@ -903,8 +903,9 @@ def main():
             want.setdefault(r["t"], r["img"])
     try:
         from PIL import Image
-    except ImportError:
+    except ImportError as e:
         Image = None
+        print("thumb fail: Pillow is not installed, no new thumbnails made:", e, file=sys.stderr)
     keep = {}
     for k, src in want.items():
         old = thumbs.get(k)

@@ -28,7 +28,7 @@ Scratch folders `out/`, `prev/`, `email/` and files `scrape.log`, `changes.json`
 Row ids include the quantity (`Store|handle|size|pkg|qty|variant`). When a scraper fix changes a row's qty or pkg, carry that row's history over to the new id so the price trend is not lost.
 
 ## Daily run
-Run everything from the repo root. Needs Python 3 with Pillow (`pip install pillow`, add `--break-system-packages` if pip refuses).
+Run everything from the repo root. Needs Python 3 with Pillow: `python3 -m pip install pillow` (add `--break-system-packages` if pip refuses), then check `python3 -c "from PIL import Image"` works. Plain `pip` can belong to a different Python. Without Pillow no thumbnails are made.
 
 1. `git pull --ff-only origin main`
 2. `rm -rf prev out email && mkdir prev && cp data/*.json prev/`

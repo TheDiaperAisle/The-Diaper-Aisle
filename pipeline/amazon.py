@@ -176,6 +176,27 @@ def load_docs(folder, kind):
     return files
 
 
+def asin_image(asin):
+    return f"https://m.media-amazon.com/images/P/{asin}.01._SCLZZZZZZZ_.jpg"
+
+
+def make_thumb(src, Image, label=None):
+    """Download an image -> {src, d: 88px WebP data URI}, or None (Amazon answers unknown ASINs with a 1x1 GIF)."""
+    try:
+        blob = urllib.request.urlopen(urllib.request.Request(src, headers=S.UA), timeout=30).read()
+        im = Image.open(io.BytesIO(blob)).convert("RGB")
+        if min(im.size) < 20:
+            raise ValueError("placeholder image")
+        im.thumbnail((88, 88))
+        buf = io.BytesIO()
+        im.save(buf, "WEBP", quality=55)
+        return {"src": src, "d": "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()}
+    except Exception as e:  # noqa
+        if label:  # "thumb fail" lines are counted as a problem by changes.py
+            print("thumb fail", label, e, file=sys.stderr)
+        return None
+
+
 def main(out, prev):
     today = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d")
     month = today[:7]
@@ -303,21 +324,23 @@ def main(out, prev):
             thumbs[r["t"]] = prev_thumbs[r["t"]]
     try:
         from PIL import Image
-    except ImportError:
+    except ImportError as e:
         Image = None
+        print("thumb fail: Pillow is not installed, no Amazon thumbnails made:", e, file=sys.stderr)
     for r in amz:
         src = r.pop("img", None)
-        if not src or not Image or (thumbs.get(r["t"]) or {}).get("src") == src:
+        if not Image or not src or (thumbs.get(r["t"]) or {}).get("src") == src:
             continue
-        try:
-            blob = urllib.request.urlopen(urllib.request.Request(src, headers=S.UA), timeout=30).read()
-            im = Image.open(io.BytesIO(blob)).convert("RGB")
-            im.thumbnail((88, 88))
-            buf = io.BytesIO()
-            im.save(buf, "WEBP", quality=55)
-            thumbs[r["t"]] = {"src": src, "d": "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()}
-        except Exception as e:  # noqa
-            print("amazon thumb fail", r["t"], e, file=sys.stderr)
+        thumb = make_thumb(src, Image, r["t"])
+        if thumb:
+            thumbs[r["t"]] = thumb
+    # listings carried over from earlier days have no search image: try Amazon's ASIN image
+    # (many ASINs have none and get a 1x1 placeholder, so these misses are not reported)
+    for r in amz:
+        if Image and r["t"] not in thumbs:
+            thumb = make_thumb(asin_image(r["t"].split("|", 1)[1]), Image)
+            if thumb:
+                thumbs[r["t"]] = thumb
 
     # rewrite the out/ files
     def chunks(items, maxbytes=140_000):

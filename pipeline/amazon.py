@@ -294,6 +294,13 @@ def main(out, prev):
     thumbs = {}
     for f in tfiles:
         thumbs.update(json.load(open(f)).get("t", {}))
+    # scraper.py keeps only its own stores' thumbs, so carry Amazon thumbs over from prev/
+    prev_thumbs = {}
+    for f in load_docs(prev, "thumbs"):
+        prev_thumbs.update(json.load(open(f)).get("t", {}))
+    for r in amz:
+        if r["t"] not in thumbs and r["t"] in prev_thumbs:
+            thumbs[r["t"]] = prev_thumbs[r["t"]]
     try:
         from PIL import Image
     except ImportError:

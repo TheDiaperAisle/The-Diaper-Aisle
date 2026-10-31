@@ -546,7 +546,77 @@ KEY_ALIAS = {
     "booster|rearz|overnight scented": "booster|rearz|overnight",
     "booster|tranquility|boosterpads plus super topliner": "booster|tranquility|plus super topliner",
     "booster|tranquility|contour plus super topliner": "booster|tranquility|plus super topliner",
+    # Abena Abri-Form Comfort M4/L4/XL4 (owner 2026-10-31): AgeComfort still sells it as 'Abri Form Original
+    # X Plus' (M 14 / L 12, the M4/L4 pack counts) and 'Abri-Form Premium XL4' (the old names)
+    "diaper|abena|abri form original plus x": "diaper|abena|abri comfort form",
+    "diaper|abena|abri form premium": "diaper|abena|abri comfort form",
+    "diaper|abena|abri form": "diaper|abena|abri comfort form",   # Amazon 'Abri-Form Premium XL4'
 }
+
+# Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
+LINE_NAME = {
+    "diaper|abena|abri comfort form": "Abri-Form Comfort",
+}
+
+
+# ---------- Abena size + level codes ----------
+# Abena names its products by size letter + absorbency level: 'Slip Premium M4', 'Pants L3', 'Flexi-Fit M-L3'
+# (owner 2026-10-31). Stores write 'Slip Premium Briefs - Level 4' with the size as an option, or the old
+# names ('X Plus' = level 4). The pid stays the same; only the display name ('line') gets the code.
+ABENA_CODE = re.compile(r"\b(XXS|XS|S|M|L|XL|XXL|S-M|M-L|L-XL)([0-4])\b", re.I)
+ABENA_CODE_SIZE = {"S-M": "S/M", "M-L": "M/L", "L-XL": "L/XL"}
+
+
+def is_abena(r):
+    return (r.get("brand") or "").lower() == "abena"
+
+
+def abena_level(r):
+    for text in (r.get("line") or "", r.get("name") or ""):
+        m = re.search(r"\blevel\s*(\d)\b", text, re.I)
+        if m:
+            return m.group(1)
+    m = ABENA_CODE.search(r.get("name") or "")
+    if m:
+        return m.group(2)
+    if re.search(r"\bx[- ]?plus\b", r.get("name") or "", re.I) and r.get("pid") == "diaper|abena|abri comfort form":
+        return "4"   # Abri-Form 'X Plus' is the old name of Abri-Form Comfort level 4
+    return None
+
+
+def abena_fix_size(r):
+    """'Abri-Flex ... XS1' / 'Abri-Form Premium XL4' with no size option: take the size from the code. Rebuilds the id."""
+    if not is_abena(r) or r["size"] != "One size":
+        return r
+    m = ABENA_CODE.search(r.get("name") or "")
+    if m:
+        code = m.group(1).upper()
+        r["size"] = ABENA_CODE_SIZE.get(code, code)
+        parts = r["id"].split("|")
+        parts[2] = r["size"]
+        r["id"] = "|".join(parts)
+    return r
+
+
+def abena_names(rows):
+    for r in rows:
+        if not is_abena(r) or not r.get("line"):
+            continue
+        lvl = abena_level(r)
+        base = r["line"]
+        while base.lower().startswith("abena "):
+            base = base[6:]
+        base = re.sub(r"\s*-\s*level\s*\d\b", "", base, flags=re.I)
+        base = ABENA_CODE.sub("", base)
+        base = re.sub(r"\s{2,}", " ", base).strip(" -")
+        code = r["size"].replace("/", "-") if r["size"] not in ("One size", "Regular") else None
+        if lvl and code:
+            r["line"] = f"{base} {code}{lvl}"
+        elif lvl:
+            r["line"] = f"{base} - Level {lvl}"
+        else:
+            r["line"] = base
+    return rows
 
 
 # Hand-checked capacities (mL) for products whose pages state it only in an image. Used only when no
@@ -795,6 +865,7 @@ def harmonise(rows):
         # display name: prefer names from mixed-case store titles, then most common, then longest
         names = Counter(r["line"] for r in rs if not r["name"].isupper()) or Counter(r["line"] for r in rs)
         line = sorted(names.items(), key=lambda kv: (-kv[1], -len(kv[0])))[0][0]
+        line = LINE_NAME.get(pid, line)
         caps = Counter(r["cap"] for r in rs if r["cap"])
         cap = sorted(caps.items(), key=lambda kv: (-kv[1], -kv[0]))[0][0] if caps else None
         manual = CAP_MANUAL.get(pid) if not cap else None  # only when no store states it in text
@@ -816,6 +887,7 @@ def harmonise(rows):
             continue
         seen[k] = r
         out.append(r)
+    abena_names(out)
     for r in out:
         r["ppd"] = round(r["price"] / r["qty"], 3) if r["qty"] else None
         r["ppl"] = round(r["ppd"] / (r["cap"] / 1000), 3) if (r["ppd"] and r["cap"]) else None
@@ -859,6 +931,7 @@ def main():
                     d = json.load(open(os.path.join(root, f)))
                     for r in d.get("rows", []):
                         prev_rows[r["id"]] = r
+    all_rows = [abena_fix_size(r) for r in all_rows]
     all_rows = harmonise([r for r in all_rows if not r.get("stale")]) + [r for r in all_rows if r.get("stale")]
     for store, st in status.items():
         if not st["ok"]:

@@ -123,6 +123,19 @@ def name_from_title(title):
     return segs[0] if segs else title
 
 
+def amazon_size(title):
+    # '(Medium To Extra Large)' / '(Small To Extra Large Sizes)' is the range the product comes in, not this listing's size
+    sw = r"(?:x*-?small|medium|x*-?large|extra[\s-]*(?:small|large))"
+    t = re.sub(r"\([^()]*\b" + sw + r"\s+to\s+" + sw + r"\b[^()]*\)", "", title, flags=re.I)
+    for seg in re.split(r"[,;()|]", t):
+        seg2 = re.sub(r"large\s*/\s*(?:x-?|extra\s*)large", "L/XL", seg, flags=re.I)
+        seg2 = re.sub(r"\bextra[\s-]*small\b", "XS", seg2.replace("Small/Medium", "S/M"), flags=re.I)
+        sz = S.size_of(seg2)
+        if sz and len(seg.strip()) <= 40:
+            return sz
+    return S.size_of(t) or "One size"
+
+
 def to_row(it, brand, today):
     title = re.sub(r"\bMd\b", "Medium", re.sub(r"\bLg\b", "Large", re.sub(r"\bSm\b", "Small", it["title"])))
     name = name_from_title(title)
@@ -147,27 +160,21 @@ def to_row(it, brand, today):
         line = f"{line} - Level {lv.group(1)}"
     m = re.search(r"\b(white|pink|blue|black|purple|green|yellow|beige|grey|gray|red|tie[- ]?dye)\b", title, re.I)
     variant = title_var or (S.norm_variant(m.group(1).title()) if m else None)
-    sz = None
-    for seg in re.split(r"[,;()|]", title):
-        sz = S.size_of(seg.replace("Small/Medium", "S/M").replace("Large/X-Large", "L/XL"))
-        if sz and len(seg.strip()) <= 40:
-            break
-        sz = None
-    size = sz or S.size_of(title) or "One size"
+    size = amazon_size(title)
     q = re.search(r"(\d+)\s*(?:count|ct\b|pieces|pcs|pack\b|-pack|diapers|briefs)", title, re.I) or \
         re.search(r"\((\d+)\s*pack\)", title, re.I)
     qty = int(q.group(1)) if q and 0 < int(q.group(1)) <= 400 else None
     pkg = "Case" if (re.search(r"\bcase\b", title, re.I) or (qty and qty > 40)) else "Bag"
     lo_hi = (100, 5000) if cat == "booster" else (1000, 20000)
     cap = S.capacity_ml(title, *lo_hi)
-    return {
+    return S.abena_fix_size({
         "id": f"Amazon|{it['asin']}|{size}|{pkg}|{qty}|{variant or '-'}", "store": "Amazon",
         "name": f"{brand} {title}", "brand": brand, "line": line, "pid": S.product_key(brand, line, cat),
         "variant": variant, "cat": cat, "dims": None, "style": S.style_of(p), "size": size, "pkg": pkg, "qty": qty,
         "price": it["price"], "cap": cap, "avail": True, "t": f"Amazon|{it['asin']}", "img": it["img"],
         "url": f"{BASE}/dp/{it['asin']}", "asin": it["asin"], "checked": today,
         "ab": brand in AB_BRANDS,
-    }
+    })
 
 
 def load_docs(folder, kind):
@@ -286,6 +293,8 @@ def main(out, prev):
         if o:
             r["line"] = o["line"]
             r["cap"] = r["cap"] or o.get("cap")
+        r["line"] = S.LINE_NAME.get(r["pid"], r["line"])
+        S.abena_names([r])
         sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])
         if sized:
             r["cap"] = sized

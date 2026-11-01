@@ -22,10 +22,12 @@ import scraper as S
 
 MONTHLY_BUDGET = int(os.environ.get("AMAZON_CREDIT_BUDGET", "700"))
 CARRY_DAYS = 14
-# Listings whose title gives no clear piece count or no size get their product page read once ('Number of Items',
-# 'Size'), 1 credit
-# each, at most this many a day, out of the day's search share. Results are kept per ASIN in meta.amazon.qty.
-PAGE_LOOKUPS = 8
+# Listings whose title leaves out the piece count, the size or the capacity (and no other store or CAP_BY_SIZE has
+# the capacity) get their product page read once, 1 credit each. Results are kept per ASIN in meta.amazon.qty.
+# While pages are waiting, up to PAGE_LOOKUPS a day are read and searches drop to no fewer than MIN_SEARCHES
+# (owner 2026-11-01: clean the data up quickly); with no backlog every credit goes to searches again.
+PAGE_LOOKUPS = 40
+MIN_SEARCHES = 8
 PAGE_RETRY_DAYS = 45   # pages that gave no count are tried again after this long
 BASE = "https://www.amazon.ca"
 
@@ -203,6 +205,43 @@ def page_qty(raw):
     return None
 
 
+PAGE_SECTIONS = ("feature-bullets", "productDescription", "pqv-feature-bullets", "pqv-description",
+                 "productOverview_feature_div", "prodDetails", "detailBullets")
+
+
+def page_text(raw):
+    """Text of the listing's own sections (bullets, description, details). Skips comparison tables, 'customers also
+    bought' and ads, which name other products and their capacities."""
+    parts = []
+    for sid in PAGE_SECTIONS:
+        for m in re.finditer(r'id="' + sid + r'"', raw):
+            chunk = raw[m.end():m.end() + 40000]
+            stop = re.search(r'id="(?:aplus|CardInstance|ad-|sims-|rhf|similarities)|_feature_div"', chunk[50:])
+            chunk = chunk[:50 + stop.start()] if stop else chunk
+            chunk = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", chunk, flags=re.S)
+            parts.append(html.unescape(re.sub(r"<[^>]+>", " ", chunk)))
+    return re.sub(r"\s+", " ", " ".join(parts))
+
+
+def page_cap(raw, size, cat):
+    """Capacity (mL) the product page states for this listing, or None. A figure for its size beats a whole-product one."""
+    lo, hi = (100, 5000) if cat == "booster" else (1000, 20000)
+    t = page_text(raw)
+    if not t:
+        return None
+    by = S.caps_by_size(t, lo, hi) or {}
+    if by.get(size):
+        return by[size]
+    cap = S.capacity_ml(t, lo, hi)
+    if cap:
+        return cap
+    # 'over 181 oz capacity', '115 oz of absorbency'
+    vals = [int(round(float(x) * 29.5735 / 10.0)) * 10 for x in
+            re.findall(r"(\d{2,3}(?:\.\d)?)\s*(?:fl\.?\s*)?(?:oz|ounces)\.?\s+(?:of\s+)?(?:capacity|absorb)", t, re.I)]
+    vals = [v for v in vals if lo <= v <= hi]
+    return max(vals) if vals else None
+
+
 def fetch_page(asin, key):
     """-> (raw html of the Amazon.ca product page, credits used)"""
     body = json.dumps({"url": f"{BASE}/dp/{asin}", "formats": ["rawHtml"],
@@ -349,6 +388,48 @@ def main(out, prev):
             if r["store"] == "Amazon":
                 prev_amz[r["id"]] = r
 
+    # product facts from the other stores (name, capacity) when the product matches
+    by_pid, by_ck, pid_cap = {}, {}, {}
+    for r in rows:
+        by_pid.setdefault(r["pid"], r)
+        if r.get("cap"):
+            pid_cap[r["pid"]] = max(pid_cap.get(r["pid"], 0), r["cap"])   # sizes no store states: the highest figure
+        if r.get("cap"):
+            by_ck.setdefault((r["pid"], r["size"]), r)   # capacities can differ by size (Abena M4 3600 / L4 4000 mL)
+
+    def known_cap(r):
+        """Capacity from the title, another store or CAP_BY_SIZE: these come before reading the product page."""
+        if r.get("cap") or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]):
+            return True
+        return bool(by_pid.get(r["pid"]) and ((by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])))
+
+    retry = (datetime.date.fromisoformat(today) - datetime.timedelta(days=PAGE_RETRY_DAYS)).isoformat()
+
+    def stale(a, k):
+        c = qcache.get(a)
+        return c is None or k not in c or (not c[k] and c.get("d", "") < retry)
+
+    def wants_page(r):
+        """-> sort key if the listing's product page should be read (lower first), else None"""
+        q, sure = amazon_qty(r["name"])
+        nosize = r["size"] == "One size" and r["cat"] != "booster"
+        a = r["asin"]
+        need_n, need_size = not sure and stale(a, "n"), nosize and stale(a, "size")
+        need_cap = not known_cap(r) and stale(a, "cap")
+        if not (need_n or need_size or need_cap):
+            return None
+        return (not need_size, q is not None, not need_n, a)
+
+    def reparse(r):
+        """listing from yesterday, read again from its stored title (so parsing fixes reach it without a new search)"""
+        if r.get("name", "").startswith(r["brand"] + " "):
+            it = {"asin": r["asin"], "title": r["name"][len(r["brand"]) + 1:], "price": r["price"], "img": None}
+            nr = to_row(it, r["brand"], r.get("checked"))
+            if nr and nr["cat"] == r["cat"]:
+                nr.pop("img", None)
+                return nr
+        return r
+
     # how many searches today: an even share of this month's remaining budget
     y, mth = int(today[:4]), int(today[5:7])
     days_left = calendar.monthrange(y, mth)[1] - int(today[8:10]) + 1
@@ -356,8 +437,10 @@ def main(out, prev):
     daily = MONTHLY_BUDGET / calendar.monthrange(y, mth)[1]
     n_today = int(min(len(QUERIES), remaining // days_left, math.ceil(daily * 1.5)))
     order = sorted(QUERIES, key=lambda q: (last.get(q, ""), QUERIES.index(q)))
-    reserve = min(PAGE_LOOKUPS, n_today // 3)   # credits kept for product-page counts
-    todo = order[:n_today - reserve]
+    backlog = len({r["asin"] for r in map(reparse, prev_amz.values()) if wants_page(r)})
+    n_search = max(min(MIN_SEARCHES, n_today), n_today - backlog) if backlog else n_today
+    reserve = max(0, min(PAGE_LOOKUPS, backlog, remaining - n_search))   # credits kept for product pages
+    todo = order[:n_search]
 
     key = firecrawl_key()
     status = {"ok": True, "searches": 0, "credits_month": st.get("used", 0)}
@@ -404,28 +487,15 @@ def main(out, prev):
     seen_asins = {r["asin"] for r in found.values()}
     carried = [r for rid, r in prev_amz.items() if rid not in found and r.get("asin") not in seen_asins
                and (r.get("checked") or "") >= cutoff]
-    # re-read carried listings from their stored title, so parsing fixes reach them without a new search
-    for i, r in enumerate(carried):
-        if r.get("name", "").startswith(r["brand"] + " "):
-            it = {"asin": r["asin"], "title": r["name"][len(r["brand"]) + 1:], "price": r["price"], "img": None}
-            nr = to_row(it, r["brand"], r.get("checked"))
-            if nr and nr["cat"] == r["cat"]:
-                nr.pop("img", None)
-                carried[i] = nr
+    carried = [reparse(r) for r in carried]
     amz = list(found.values()) + carried
     fresh = {id(r) for r in found.values()}
 
-    # piece counts: product page (cached per ASIN) beats the title; read pages for unclear titles
-    guess = {}
-    for r in amz:
-        guess[r["asin"]] = amazon_qty(r["name"])
-    retry = (datetime.date.fromisoformat(today) - datetime.timedelta(days=PAGE_RETRY_DAYS)).isoformat()
-    nosize = {r["asin"] for r in amz if r["size"] == "One size" and r["cat"] != "booster"}
-    def stale(a, k):
-        c = qcache.get(a)
-        return c is None or k not in c or (not c[k] and c.get("d", "") < retry)
-    pending = sorted({a for a, (q, sure) in guess.items() if (not sure and stale(a, "n")) or (a in nosize and stale(a, "size"))},
-                     key=lambda a: (a not in nosize, guess[a][0] is not None, a))
+    # product pages (cached per ASIN) fill in what the title leaves out: piece count, size, capacity
+    guess = {r["asin"]: amazon_qty(r["name"]) for r in amz}
+    by_asin = {r["asin"]: r for r in amz}
+    pending = sorted((k, a) for a, k in ((r["asin"], wants_page(r)) for r in amz) if k)
+    pending = list(dict.fromkeys(a for k, a in pending))
     lookups = 0
     for a in pending[:reserve if key else 0]:
         try:
@@ -438,9 +508,12 @@ def main(out, prev):
         st["used"] = st.get("used", 0) + used
         lookups += 1
         if 'id="productTitle"' in raw:   # a real product page, not a block or captcha page
-            qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "d": today}
+            r = by_asin[a]
+            size = page_size(raw) or r["size"]
+            qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "cap": page_cap(raw, size, r["cat"]), "d": today}
         time.sleep(1)
     status["pages"] = lookups
+    status["pages_waiting"] = max(0, len(pending) - lookups)
     status["credits_month"] = st["used"]
     if errors:
         status["errors"] = errors[:5]
@@ -451,14 +524,7 @@ def main(out, prev):
             r["size"] = qcache[r["asin"]]["size"]
         r["id"] = f"Amazon|{r['asin']}|{r['size']}|{r['pkg']}|{n}|{r['id'].split('|', 5)[5]}"
 
-    # product facts from the other stores (name, capacity) when the product matches
-    by_pid, by_ck, pid_cap = {}, {}, {}
-    for r in rows:
-        by_pid.setdefault(r["pid"], r)
-        if r.get("cap"):
-            pid_cap[r["pid"]] = max(pid_cap.get(r["pid"], 0), r["cap"])   # sizes no store states: the highest figure
-        if r.get("cap"):
-            by_ck.setdefault((r["pid"], r["size"]), r)   # capacities can differ by size (Abena M4 3600 / L4 4000 mL)
+    # product facts from the other stores (name, capacity) when the product matches; the product page comes last
     for r in amz:
         o = by_pid.get(r["pid"])
         if o:
@@ -469,6 +535,7 @@ def main(out, prev):
         sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])
         if sized:
             r["cap"] = sized
+        r["cap"] = r["cap"] or (qcache.get(r["asin"]) or {}).get("cap")
         r["ppd"] = round(r["price"] / r["qty"], 3) if r["qty"] else None
         r["ppl"] = round(r["ppd"] / (r["cap"] / 1000), 3) if (r.get("ppd") and r.get("cap")) else None
         r["ck"] = f"{r['pid']}|{r['size']}|"

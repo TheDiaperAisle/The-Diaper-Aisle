@@ -828,6 +828,51 @@ def add_case_variants(base, p):
             p["options"][pidx]["values"].append(val)
 
 
+# ---------- booster pad dimensions ----------
+_NUM = r"(\d{1,2}(?:\.\d{1,2})?)"
+_IN = r"(?:\"|”|''|in\b\.?|inch(?:es)?\b)"
+
+
+def _fmt_in(v):
+    return f"{round(v, 2):g}\""
+
+
+def dims_of(t, labelled=False):
+    """'4.25" x 13.5"', '4.25 x 15 inches', 'Dimensions: L 16.5", W 6"', 'L 42cm, W 15cm' -> '4.25" x 13.5"' (inches,
+    as written; cm converted). labelled=True accepts only figures after 'Dimension(s)'/'Size'/'Measures', for pages
+    whose other text (related products) may name other pads."""
+    lab = r"(?:dimensions?|measures?|size)\s*:?\s*" if labelled else ""
+    for pat, unit in ((lab + _NUM + r"\s*" + _IN + r"?\s*(?:x|×|by)\s*" + _NUM + r"\s*" + _IN, 1.0),
+                      (lab + _NUM + r"\s*cm\s*(?:x|×|by)\s*" + _NUM + r"\s*cm\b", 1 / 2.54),
+                      (r"(?:dimensions?\s*:?\s*)?\bL(?:ength)?\s*:?\s*" + _NUM + r"\s*" + _IN + r"\s*,?\s*W(?:idth)?\s*:?\s*" + _NUM + r"\s*" + _IN, 1.0),
+                      (r"(?:dimensions?\s*:?\s*)?\bL(?:ength)?\s*:?\s*" + _NUM + r"\s*cm\s*,?\s*W(?:idth)?\s*:?\s*" + _NUM + r"\s*cm\b", 1 / 2.54)):
+        m = re.search(pat, t, re.I)
+        if m:
+            a, b = float(m.group(1)) * unit, float(m.group(2)) * unit
+            if 1 <= min(a, b) and max(a, b) <= 40:
+                return f"{_fmt_in(a)} x {_fmt_in(b)}"
+    return None
+
+
+def dims_by_size(t):
+    """'S: Fits size 4.25" x 13.5" ... M: Fits size 5.25" x 16"' -> {'S': '4.25" x 13.5"', 'M': '5.25" x 16"'}"""
+    out = {}
+    for m in re.finditer(r"(?<![\w/])(XXS|XS|S|M|L|XL|XXL|2XL|2X|3XL|S/M|M/L|L/XL)(?:\s*\([^)]{0,20}\))?\s*:\s*", t):
+        d = dims_of(t[m.end():m.end() + 30])
+        if d:
+            lab = m.group(1).upper()
+            out.setdefault({"2X": "XXL", "2XL": "XXL"}.get(lab, lab), d)
+    return out if len(out) >= 2 else {}
+
+
+def page_text(base, handle):
+    url = f"{base}/products/{urllib.parse.quote(handle)}"
+    if url not in _PAGE_CACHE:
+        raw = _page_raw(base, handle, "page capacity")
+        _PAGE_CACHE[url] = text(re.sub(r"<script.*?</script>|<style.*?</style>", " ", raw, flags=re.S)) if raw else ""
+    return _PAGE_CACHE[url]
+
+
 def page_capacity(base, handle, lo, hi):
     """Some stores (e.g. ABUniverse) keep capacity in a spec table on the product page rather than in the
     description: 'Absorbency *Capacity varies by size 6050ml'. Read the page and accept only an mL figure
@@ -859,8 +904,12 @@ def parse_store(store, base, products):
         if cap is None and VIA.get(store) is None:
             cap = page_capacity(base, p["handle"], *lo_hi)
         size_caps = caps_by_size(desc, *lo_hi)
-        dm = re.search(r"(\d+(?:\.\d+)?)\s*[\"”]\s*x\s*(\d+(?:\.\d+)?)\s*[\"”]", desc)
-        dims = f'{dm.group(1)}" x {dm.group(2)}"' if dm else None
+        dims, size_dims = (dims_of(desc), dims_by_size(desc)) if cat == "booster" else (None, {})
+        if cat == "booster" and not dims and not size_dims and VIA.get(store) is None:
+            # missing from the feed: read the product page (owner 2026-11-01: the page is the default next source)
+            pt = page_text(base, p["handle"])
+            size_dims = dims_by_size(pt)
+            dims = None if size_dims else dims_of(pt, labelled=True)
         qt = qty_table(desc)
         img = thumb(p["images"][0]["src"]) if p.get("images") else None
         prod_size = size_of(p["title"])  # e.g. 'TENA ProSkin Plus Small Brief'
@@ -918,7 +967,7 @@ def parse_store(store, base, products):
             rows[key] = {
                 "id": key, "store": store, "name": p["title"].strip(), "brand": brand, "line": line,
                 "pid": product_key(brand, line, cat), "variant": variant,
-                "cat": cat, "dims": dims if (cat == "booster" and size == "One size") else None,
+                "cat": cat, "dims": size_dims.get(size) or (dims if (cat == "booster" and size == "One size") else None),
                 "style": style_of(p), "size": size, "pkg": pkg, "qty": qty, "price": price,
                 "cap": size_caps.get(size, cap), "cap_size": size in size_caps,
                 "avail": avail, "img": img, "t": f"{store}|{p['handle']}",

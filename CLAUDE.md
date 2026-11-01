@@ -70,6 +70,8 @@ Send each edition with the Gmail connector's send tool, one message per edition:
 - Gmail connector quirks (tested): the `background:` CSS shorthand and external image URLs are stripped; `background-color` and `cid:att0` work. Don't hand-edit the HTML.
 
 ## Stores and parsing notes
+- Missing data (owner 2026-11-01): when the feed or title lacks a fact (count, size, capacity, dimensions), the product page is the default next source, after other stores' figures for the same product. Add page reads for new gaps the same way.
+- Booster dimensions: `dims_of` reads '4.25" x 13.5"', '4.25 x 15 inches', 'Dimensions: L 16.5", W 6"' and cm figures (shown in inches); `dims_by_size` reads per-size lists ('S: Fits size 4.25" x 13.5" ... M: ...'). Missing from the feed → product page (only labelled 'Dimensions:'/'Size:' figures there). The page shows L (longer side) and W (shorter side) columns on the Booster tab.
 - AgeComfort: product pages live on `www.agecomfort.com`; the feed marks backorders as available, so stock comes from `stock_check.py`.
 - Rearz (`ca.rearz.ca`) is BigCommerce: sitemap → product pages → `/remote/v1/product-attributes/{id}` per size x pack for exact CAD price and stock. Don't take prices from the page HTML.
 - ABUniverse case rows (4 packs / 40, 25% off) come from the page's `diaper_add_case.js` widget. A bigger case at the same $/diaper is skipped.

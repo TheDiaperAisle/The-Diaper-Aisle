@@ -330,8 +330,7 @@ def to_row(it, brand, today):
     lo_hi = (100, 5000) if cat == "booster" else (1000, 20000)
     cap = S.capacity_ml(title, *lo_hi)
     # booster pad dimensions, same form as the other stores: 'Mini 10.5" x 2.75"' -> '10.5" x 2.75"'
-    dm = re.search(r"(\d+(?:\.\d+)?)\s*[\"”]\s*x\s*(\d+(?:\.\d+)?)\s*[\"”]", title) if cat == "booster" else None
-    dims = f'{dm.group(1)}" x {dm.group(2)}"' if dm and size == "One size" else None
+    dims = S.dims_of(title) if cat == "booster" and size == "One size" else None
     return S.abena_fix_size({
         "id": f"Amazon|{it['asin']}|{size}|{pkg}|{qty}|{variant or '-'}", "store": "Amazon",
         "name": f"{brand} {title}", "brand": brand, "line": line, "pid": S.product_key(brand, line, cat),
@@ -409,6 +408,11 @@ def main(out, prev):
             return True
         return bool(by_pid.get(r["pid"]) and ((by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])))
 
+    def other_dims(r):
+        """booster dimensions the other stores agree on for this product, or None"""
+        d = {x["dims"] for x in rows if x["pid"] == r["pid"] and x.get("dims") and x["size"] == r["size"]}
+        return d.pop() if len(d) == 1 else None
+
     retry = (datetime.date.fromisoformat(today) - datetime.timedelta(days=PAGE_RETRY_DAYS)).isoformat()
 
     def stale(a, k):
@@ -422,7 +426,8 @@ def main(out, prev):
         a = r["asin"]
         need_n, need_size = not sure and stale(a, "n"), nosize and stale(a, "size")
         need_cap = not known_cap(r) and stale(a, "cap")
-        if not (need_n or need_size or need_cap):
+        need_dims = r["cat"] == "booster" and not r.get("dims") and not other_dims(r) and stale(a, "dims")
+        if not (need_n or need_size or need_cap or need_dims):
             return None
         return (not need_size, q is not None, not need_n, a)
 
@@ -516,7 +521,8 @@ def main(out, prev):
         if 'id="productTitle"' in raw:   # a real product page, not a block or captcha page
             r = by_asin[a]
             size = page_size(raw) or r["size"]
-            qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "cap": page_cap(raw, size, r["cat"]), "d": today}
+            qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "cap": page_cap(raw, size, r["cat"]),
+                         "dims": S.dims_of(page_text(raw)) if r["cat"] == "booster" else None, "d": today}
         time.sleep(1)
     status["pages"] = lookups
     status["pages_waiting"] = max(0, len(pending) - lookups)
@@ -544,17 +550,17 @@ def main(out, prev):
         if o:
             r["line"] = o["line"]
             r["cap"] = r["cap"] or (by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])
-            # booster dimensions: the other stores' figure when they all agree (pads come in one size)
-            if r["cat"] == "booster" and not r.get("dims") and r["size"] == "One size":
-                dims = {x["dims"] for x in rows if x["pid"] == r["pid"] and x.get("dims")}
-                if len(dims) == 1:
-                    r["dims"] = dims.pop()
+            # booster dimensions: the other stores' figure when they all agree
+            if r["cat"] == "booster" and not r.get("dims"):
+                r["dims"] = other_dims(r)
         r["line"] = S.LINE_NAME.get(r["pid"], r["line"])
         S.abena_names([r])
         sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])
         if sized:
             r["cap"] = sized
         r["cap"] = r["cap"] or (qcache.get(r["asin"]) or {}).get("cap")
+        if r["cat"] == "booster" and not r.get("dims"):
+            r["dims"] = (qcache.get(r["asin"]) or {}).get("dims")   # product page, last
         r["ppd"] = round(r["price"] / r["qty"], 3) if r["qty"] else None
         r["ppl"] = round(r["ppd"] / (r["cap"] / 1000), 3) if (r.get("ppd") and r.get("cap")) else None
         r["ck"] = f"{r['pid']}|{r['size']}|{r.get('dims') or ''}"   # same compare key as scraper.py (boosters by dimensions)

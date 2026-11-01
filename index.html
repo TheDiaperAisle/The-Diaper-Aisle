@@ -273,8 +273,21 @@ const unit = v => v==null ? "—" : "$" + v.toFixed(v < 1 ? 3 : 2);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const titleCase = s => /[a-z]/.test(s) ? s : s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAm Pm\b/,"AM PM");
 
-function remember(){ try{ localStorage.setItem("dipaisle.f", JSON.stringify({q:$("#q").value, b:$("#f-brand").value, sz:$("#f-size").value, p:$("#f-pkg").value, s:$("#f-stock").checked, best:$("#f-best").checked, prov:$("#f-prov").value, stores:[...S.stores], sort:S.sort})); }catch(e){} }
-function restore(){ try{ const f = JSON.parse(localStorage.getItem("dipaisle.f")||"null"); if(!f) return f; $("#q").value=f.q||""; $("#f-pkg").value=f.p||""; $("#f-stock").checked=!!f.s; $("#f-best").checked=!!f.best; if(f.prov) $("#f-prov").value=f.prov; if(f.sort) S.sort=f.sort; S.stores=new Set(f.stores||[]); return f; }catch(e){ return null; } }
+// Each tab (diapers, pull-ups, boosters) keeps its own filters, store picks and sort; the ship-to province is shared.
+const BLANK = () => ({q:"", b:"", sz:"", p:"", a:"", vr:"", s:false, best:false, stores:[], sort:{k:"ppd", dir:"asc"}});
+S.F = {diaper:BLANK(), pullup:BLANK(), booster:BLANK()};
+function readFilters(){   // the visible controls -> this tab's saved filters
+  S.F[S.cat] = {q:$("#q").value, b:$("#f-brand").value, sz:$("#f-size").value, p:$("#f-pkg").value, a:$("#f-abs").value, vr:$("#f-var").value,
+                s:$("#f-stock").checked, best:$("#f-best").checked, stores:[...S.stores], sort:S.sort};
+}
+function remember(){ readFilters(); try{ localStorage.setItem("dipaisle.f2", JSON.stringify({prov:$("#f-prov").value, tabs:S.F})); }catch(e){} }
+function restore(){ try{
+  const f = JSON.parse(localStorage.getItem("dipaisle.f2")||"null");
+  if(f){ Object.keys(S.F).forEach(c => { if(f.tabs?.[c]) S.F[c] = {...BLANK(), ...f.tabs[c]}; }); if(f.prov) $("#f-prov").value=f.prov; return f; }
+  const old = JSON.parse(localStorage.getItem("dipaisle.f")||"null");   // filters saved before tabs had their own
+  if(old){ S.F.diaper = {...BLANK(), q:old.q||"", b:old.b||"", sz:old.sz||"", p:old.p||"", s:!!old.s, best:!!old.best, stores:old.stores||[], sort:old.sort||BLANK().sort}; if(old.prov) $("#f-prov").value=old.prov; }
+  return old;
+}catch(e){ return null; } }
 const saved = restore();
 
 function rebuildRows(){
@@ -296,17 +309,22 @@ function rebuildRows(){
 const catRows = () => S.rows.filter(r => r.cat===S.cat);
 let firstFill = true;
 function setCat(cat, keepFilters){
+  if(S.cat !== cat && !firstFill) readFilters();   // keep the tab we are leaving as it was
   S.cat = cat; S.limit = 100;
+  const F = S.F[cat];
+  S.sort = F.sort; S.stores = new Set(F.stores);
   document.querySelectorAll("#tabs a").forEach(a => a.dataset.cat===cat ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
   $("#h-unit").textContent = "$/" + CATS[cat].one;
   $("#grid").classList.toggle("booster", cat==="booster");   // boosters: L and W columns instead of Size
   if(cat!=="booster" && (S.sort.k==="dl" || S.sort.k==="dw")) S.sort = {k:"ppd", dir:"asc"};
+  $("#q").value = F.q; $("#f-pkg").value = F.p; $("#f-stock").checked = F.s; $("#f-best").checked = F.best;
   const rows = catRows();
   const fill = (sel, vals, keep) => { const cur = keep ?? sel.value; sel.length = 1; vals.forEach(v => sel.add(new Option(v, v))); sel.value = vals.includes(cur) ? cur : ""; };
-  fill($("#f-brand"), [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), firstFill ? saved?.b : undefined);
-  fill($("#f-size"), [...new Set(rows.map(r => r.size))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b)), firstFill ? saved?.sz : undefined);
-  fill($("#f-var"), [...new Set(rows.map(r => r.variant).filter(Boolean))].sort(), undefined);
+  fill($("#f-brand"), [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), F.b);
+  fill($("#f-size"), [...new Set(rows.map(r => r.size))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b)), F.sz);
+  fill($("#f-var"), [...new Set(rows.map(r => r.variant).filter(Boolean))].sort(), F.vr);
   const fa = $("#f-abs"); fa.length = 1; CAP_STEPS[cat].forEach(v => fa.add(new Option(v.toLocaleString()+" mL or more", v))); fa.add(new Option("Has a mL rating", 1));
+  fa.value = [...fa.options].some(o => o.value === String(F.a)) ? String(F.a) : "";
   if(S.rows.length) firstFill = false;
   renderStores(); render(); renderTags();
 }

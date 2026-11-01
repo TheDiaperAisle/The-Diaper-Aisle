@@ -51,9 +51,25 @@ def main():
     pmeta, ometa = load_meta(prev_dir), load_meta(out_dir)
     stale_stores = {r["store"] for r in out.values() if r.get("stale")}
 
+    # a row whose pack quantity was corrected gets a new id (Store|handle|size|pkg|qty|variant): when exactly one
+    # unmatched row of yesterday has the same store, handle, size and variant, it is the same listing
+    def loose(k):
+        x = k.split("|")
+        return tuple(x[:3] + x[5:])
+    spare = {}
+    for k in prev:
+        if k not in out:
+            spare.setdefault(loose(k), []).append(k)
+    renamed = {}
+    for k in out:
+        if k not in prev and len(spare.get(loose(k), [])) == 1:
+            renamed[k] = spare[loose(k)][0]
+    if len(set(renamed.values())) != len(renamed):
+        renamed = {k: v for k, v in renamed.items() if list(renamed.values()).count(v) == 1}
+
     changes, back, oos, new, gone = [], [], [], [], []
     for k, r in out.items():
-        p = prev.get(k)
+        p = prev.get(k) or prev.get(renamed.get(k))
         if r.get("stale"):
             continue
         if not p:
@@ -69,7 +85,7 @@ def main():
         elif p.get("avail") and not r.get("avail"):
             oos.append({"id": k, "item": label(r), "price": r["price"]})
     for k, p in prev.items():
-        if k not in out and p["store"] not in stale_stores:
+        if k not in out and k not in renamed.values() and p["store"] not in stale_stores:
             gone.append({"id": k, "item": label(p), "price": p["price"]})
     changes.sort(key=lambda c: c["pct"] or 0)
 
@@ -95,7 +111,7 @@ def main():
         if n > prev_noqty.get(s, 0) + 5:
             issues.append(f"{s}: {n} rows have no pack quantity (was {prev_noqty.get(s, 0)})")
     for r in live:
-        p = prev.get(r["id"])
+        p = prev.get(r["id"]) or prev.get(renamed.get(r["id"]))
         if p and not p.get("stale") and p["price"] and abs(r["price"] - p["price"]) / p["price"] > 0.5:
             issues.append(f"price moved >50%, check for a parsing error: {label(r)} {money(p['price'])} → {money(r['price'])}")
     if log is not None:

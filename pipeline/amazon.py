@@ -22,6 +22,10 @@ import scraper as S
 
 MONTHLY_BUDGET = int(os.environ.get("AMAZON_CREDIT_BUDGET", "700"))
 CARRY_DAYS = 14
+# Listings whose title gives no clear piece count get their product page read once ('Number of Items'), 1 credit
+# each, at most this many a day, out of the day's search share. Results are kept per ASIN in meta.amazon.qty.
+PAGE_LOOKUPS = 5
+PAGE_RETRY_DAYS = 45   # pages that gave no count are tried again after this long
 BASE = "https://www.amazon.ca"
 
 # Searches, one Amazon.ca results page each. Results from any tracked brand are kept, whichever search found them.
@@ -138,6 +142,76 @@ def amazon_size(title):
     return S.size_of(t) or "One size"
 
 
+def amazon_qty(title):
+    """Pieces in the listing, from its title -> (qty or None, sure).
+    sure=False means the title is unclear ('24 Count (Pack of 4)' is 24 or 96 depending on the seller, a lone
+    'Pack of 2' may be 2 bags) and the product page's 'Number of Items' should decide."""
+    t = re.sub(r"\b(?:level|size|stage|step)\s*\d+\b", " ", title, flags=re.I)
+    n = r"(?<![A-Za-z\d.])(\d{1,3})"
+    def ok(v):
+        return v if 0 < v <= 400 else None
+    # '(64 Total - 2 Pack)', '4 packs of 20 (80 total)'
+    m = re.search(n + r"\s*total\b", t, re.I)
+    if m:
+        return ok(int(m.group(1))), True
+    # 'Case of 56', 'Case/96 (8/12s)', '96/case', '90/case', 'Pack/12', 'Pk/25', 'Bag of 20', '20 per bag', '48/Case'
+    m = re.search(r"\b(?:(?:case|bag|box)\s*(?:/|of)|(?:pack|pk)\s*/)\s*(\d{1,3})\b", t, re.I)
+    m = m or re.search(n + r"\s*(?:/|per)\s*(?:case|bag|box|pack|pk)\b", t, re.I)
+    if m:
+        return ok(int(m.group(1))), True
+    # '3 Packs of 12', '4 bags of 25', '(2 bags of 36)'
+    m = re.search(n + r"\s*(?:packs|bags|boxes)\s+of\s+(\d{1,3})\b", t, re.I)
+    if m:
+        return ok(int(m.group(1)) * int(m.group(2))), True
+    # '14pcs x 4bags'
+    m = re.search(n + r"\s*(?:pcs|pieces|ct|count)\s*x\s*(\d{1,2})\s*(?:bags|packs)\b", t, re.I)
+    if m:
+        return ok(int(m.group(1)) * int(m.group(2))), True
+    # '96 Count', '15-Count', '24ct', '10 Pieces', '12 pcs', '(12 Pack)', 'Sample 2 Pack', '10Pack'
+    m = re.search(n + r"\s*-?\s*(?:count|coun\b|ct\b|pieces|pcs|pc\b|pack\b|-pack|diapers|briefs)", t, re.I)
+    multi = re.search(r"\(\s*pack of (\d+)\s*\)|\bpack of (\d+)\b", t, re.I)
+    if m:
+        q = ok(int(m.group(1)))
+        k = multi and int(multi.group(1) or multi.group(2))
+        return q, not (k and k > 1)
+    # a lone 'Pack of 20' is most likely the piece count, but 'Pack of 2' or 'DDEW30 Pack of 14' can be bags:
+    # use it until the product page says otherwise
+    if multi:
+        return ok(int(multi.group(1) or multi.group(2))), False
+    return None, False
+
+
+def amazon_pkg(title, qty):
+    return "Case" if (re.search(r"\bcase\b", title, re.I) or (qty and qty > 40)) else "Bag"
+
+
+def page_qty(raw):
+    """Amazon product page -> 'Number of Items' (or 'Sold as a case of N'), or None.
+    Sellers often leave 'Number of Items' at 1, and a case can list its bags ('4' for 4 bags of 14), so
+    counts under 6 are not taken (sample packs of 2 already say so in their titles)."""
+    for pat in (r"Number of Items\s*</(?:span|th)>\s*</?t[dh][^>]*>\s*(?:<td[^>]*>\s*)?(?:<span[^>]*>)?\s*(\d{1,3})\s*<",
+                r"(?:sold as|comes as|contains)\s+(?:a\s+)?(?:case|pack|bag|box) of (\d{1,3})\b",
+                r"Unit Count\s*</(?:span|th)>\s*</?t[dh][^>]*>\s*(?:<td[^>]*>\s*)?(?:<span[^>]*>)?\s*(\d{1,3})(?:\.0)?\s*Count"):
+        for m in re.finditer(pat, raw, re.I):
+            v = int(m.group(1))
+            if 6 <= v <= 400:
+                return v
+    return None
+
+
+def fetch_page(asin, key):
+    """-> (raw html of the Amazon.ca product page, credits used)"""
+    body = json.dumps({"url": f"{BASE}/dp/{asin}", "formats": ["rawHtml"],
+                       "location": {"country": "CA", "languages": ["en-CA"]}, "proxy": "basic",
+                       "onlyMainContent": False, "removeBase64Images": True, "maxAge": 0}).encode()
+    req = urllib.request.Request("https://api.firecrawl.dev/v2/scrape", data=body, method="POST",
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        res = json.load(r)
+    d = res.get("data") or {}
+    return d.get("rawHtml") or "", int((d.get("metadata") or {}).get("creditsUsed") or 1)
+
+
 def to_row(it, brand, today):
     title = re.sub(r"\bMd\b", "Medium", re.sub(r"\bLg\b", "Large", re.sub(r"\bSm\b", "Small", it["title"])))
     name = name_from_title(title)
@@ -163,10 +237,8 @@ def to_row(it, brand, today):
     m = re.search(r"\b(white|pink|blue|black|purple|green|yellow|beige|grey|gray|red|tie[- ]?dye)\b", title, re.I)
     variant = title_var or (S.norm_variant(m.group(1).title()) if m else None)
     size = amazon_size(title)
-    q = re.search(r"(\d+)\s*(?:count|ct\b|pieces|pcs|pack\b|-pack|diapers|briefs)", title, re.I) or \
-        re.search(r"\((\d+)\s*pack\)", title, re.I)
-    qty = int(q.group(1)) if q and 0 < int(q.group(1)) <= 400 else None
-    pkg = "Case" if (re.search(r"\bcase\b", title, re.I) or (qty and qty > 40)) else "Bag"
+    qty, _ = amazon_qty(title)
+    pkg = amazon_pkg(title, qty)
     lo_hi = (100, 5000) if cat == "booster" else (1000, 20000)
     cap = S.capacity_ml(title, *lo_hi)
     return S.abena_fix_size({
@@ -222,7 +294,8 @@ def main(out, prev):
         prev_meta = json.load(open(pm[0]))
     st = (prev_meta.get("amazon") or {})
     if st.get("month") != month:
-        st = {"month": month, "used": 0, "last": st.get("last", {})}
+        st = {"month": month, "used": 0, "last": st.get("last", {}), "qty": st.get("qty", {})}
+    qcache = st.setdefault("qty", {})
     last = st.get("last", {})
     prev_amz = {}
     for f in load_docs(prev, "catalog"):
@@ -237,7 +310,8 @@ def main(out, prev):
     daily = MONTHLY_BUDGET / calendar.monthrange(y, mth)[1]
     n_today = int(min(len(QUERIES), remaining // days_left, math.ceil(daily * 1.5)))
     order = sorted(QUERIES, key=lambda q: (last.get(q, ""), QUERIES.index(q)))
-    todo = order[:n_today]
+    reserve = min(PAGE_LOOKUPS, n_today // 4)   # credits kept for product-page counts
+    todo = order[:n_today - reserve]
 
     key = firecrawl_key()
     status = {"ok": True, "searches": 0, "credits_month": st.get("used", 0)}
@@ -285,6 +359,38 @@ def main(out, prev):
     carried = [r for rid, r in prev_amz.items() if rid not in found and r.get("asin") not in seen_asins
                and (r.get("checked") or "") >= cutoff]
     amz = list(found.values()) + carried
+    fresh = {id(r) for r in found.values()}
+
+    # piece counts: product page (cached per ASIN) beats the title; read pages for unclear titles
+    guess = {}
+    for r in amz:
+        guess[r["asin"]] = amazon_qty(r["name"])
+    retry = (datetime.date.fromisoformat(today) - datetime.timedelta(days=PAGE_RETRY_DAYS)).isoformat()
+    pending = sorted({a for a, (q, sure) in guess.items() if not sure and
+                      (a not in qcache or (not qcache[a].get("n") and qcache[a].get("d", "") < retry))},
+                     key=lambda a: (guess[a][0] is not None, a))
+    lookups = 0
+    for a in pending[:reserve if key else 0]:
+        try:
+            raw, used = fetch_page(a, key)
+        except Exception as e:  # noqa
+            errors.append(f"page {a}: {e}")
+            if "402" in str(e):
+                break
+            continue
+        st["used"] = st.get("used", 0) + used
+        lookups += 1
+        if 'id="productTitle"' in raw:   # a real product page, not a block or captcha page
+            qcache[a] = {"n": page_qty(raw), "d": today}
+        time.sleep(1)
+    status["pages"] = lookups
+    status["credits_month"] = st["used"]
+    if errors:
+        status["errors"] = errors[:5]
+    for r in amz:
+        n = (qcache.get(r["asin"]) or {}).get("n") or guess[r["asin"]][0]
+        r["qty"], r["pkg"] = n, amazon_pkg(r["name"], n)
+        r["id"] = f"Amazon|{r['asin']}|{r['size']}|{r['pkg']}|{n}|{r['id'].split('|', 5)[5]}"
 
     # product facts from the other stores (name, capacity) when the product matches
     by_pid, by_ck, pid_cap = {}, {}, {}
@@ -313,9 +419,19 @@ def main(out, prev):
     hist = {}
     for f in hfiles:
         hist.update(json.load(open(f)).get("h", {}))
+    # a listing whose piece count was corrected gets a new id: move its price history over
+    ids = {r["id"] for r in amz}
+    for r in amz:
+        if r["id"] in hist:
+            continue
+        p = r["id"].split("|")
+        old = [k for k in hist if k.startswith(f"Amazon|{r['asin']}|") and k not in ids
+               and k.split("|")[2] == p[2] and k.split("|")[5:] == p[5:]]
+        if len(old) == 1:
+            hist[r["id"]] = hist.pop(old[0])
     for r in amz:
         h = hist.setdefault(r["id"], [])
-        if r["id"] in found:
+        if id(r) in fresh:
             point = [today, r["price"], 1]
             if not h or h[-1][1:] != point[1:]:
                 if h and h[-1][0] == today:

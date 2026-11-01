@@ -63,7 +63,8 @@ AB_BRANDS = {"Sunkiss", "Little for Big", "Rearz", "Tykables", "ABUniverse", "LN
              "Landofgenie", "Bambino"}
 GENERIC = {"adult", "printed", "diaper", "diapers", "brief", "briefs", "incontinence", "underwear", "unisex",
            "disposable", "tabs", "with", "for", "men", "women", "and", "pieces", "count", "pack", "ct", "the",
-           "protective", "absorbent", "absorbency", "plastic", "backed", "tab", "style", "pull", "ups", "on"}
+           "protective", "absorbent", "absorbency", "plastic", "backed", "tab", "style", "pull", "ups", "on", "hips",
+           "waist", "inch", "inches", "small", "medium", "large"}
 
 
 def firecrawl_key():
@@ -123,6 +124,8 @@ def name_from_title(title):
     """'TrustPlus Adult Diapers with Tabs, Unisex, XLarge, 60 Count' -> 'TrustPlus Adult Diapers with Tabs'.
     Takes the first segment (split on , ; | ( and ' - ') that has a non-generic word."""
     title = re.sub(r"\bwith tabs\b|\s+for (?:adult|men|women|unisex)\b.*$", "", title, flags=re.I)
+    # pack sizes are not part of the name: 'Case/100', 'Pk/25', '- CASE/32', '(4 bags of 25)'
+    title = re.sub(r"\s*-?\s*\b(?:case|pack|pk|bag|box)\s*/\s*\d+\b|\(\s*\d+\s*(?:bags|packs)\s+of\s+\d+\s*\)", " ", title, flags=re.I)
     segs = [s.strip() for s in re.split(r",|;|\||\(|\s[-–]\s", title) if s.strip()]
     for s in segs:
         words = [w for w in re.findall(r"[A-Za-z][A-Za-z+'’]+", s) if w.lower() not in GENERIC and len(w) > 2
@@ -326,10 +329,13 @@ def to_row(it, brand, today):
     pkg = amazon_pkg(title, qty)
     lo_hi = (100, 5000) if cat == "booster" else (1000, 20000)
     cap = S.capacity_ml(title, *lo_hi)
+    # booster pad dimensions, same form as the other stores: 'Mini 10.5" x 2.75"' -> '10.5" x 2.75"'
+    dm = re.search(r"(\d+(?:\.\d+)?)\s*[\"”]\s*x\s*(\d+(?:\.\d+)?)\s*[\"”]", title) if cat == "booster" else None
+    dims = f'{dm.group(1)}" x {dm.group(2)}"' if dm and size == "One size" else None
     return S.abena_fix_size({
         "id": f"Amazon|{it['asin']}|{size}|{pkg}|{qty}|{variant or '-'}", "store": "Amazon",
         "name": f"{brand} {title}", "brand": brand, "line": line, "pid": S.product_key(brand, line, cat),
-        "variant": variant, "cat": cat, "dims": None, "style": S.style_of(p), "size": size, "pkg": pkg, "qty": qty,
+        "variant": variant, "cat": cat, "dims": dims, "style": S.style_of(p), "size": size, "pkg": pkg, "qty": qty,
         "price": it["price"], "cap": cap, "avail": True, "t": f"Amazon|{it['asin']}", "img": it["img"],
         "url": f"{BASE}/dp/{it['asin']}", "asin": it["asin"], "checked": today,
         "ab": brand in AB_BRANDS,
@@ -525,11 +531,24 @@ def main(out, prev):
         r["id"] = f"Amazon|{r['asin']}|{r['size']}|{r['pkg']}|{n}|{r['id'].split('|', 5)[5]}"
 
     # product facts from the other stores (name, capacity) when the product matches; the product page comes last
+    def dkey(d):
+        return tuple(sorted(float(x) for x in re.findall(r"\d+(?:\.\d+)?", d or ""))) or None
     for r in amz:
+        # a booster whose title gives its dimensions is the same brand's pad with those dimensions
+        # ('TopLiner Booster Pads, Mini 10.5" x 2.75"' is TopLiner Mini, not the 14" x 4" TopLiner)
+        if r["cat"] == "booster" and r.get("dims"):
+            same = {x["pid"] for x in rows if x["cat"] == "booster" and x["brand"] == r["brand"] and dkey(x.get("dims")) == dkey(r["dims"])}
+            if len(same) == 1:
+                r["pid"] = same.pop()
         o = by_pid.get(r["pid"])
         if o:
             r["line"] = o["line"]
             r["cap"] = r["cap"] or (by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])
+            # booster dimensions: the other stores' figure when they all agree (pads come in one size)
+            if r["cat"] == "booster" and not r.get("dims") and r["size"] == "One size":
+                dims = {x["dims"] for x in rows if x["pid"] == r["pid"] and x.get("dims")}
+                if len(dims) == 1:
+                    r["dims"] = dims.pop()
         r["line"] = S.LINE_NAME.get(r["pid"], r["line"])
         S.abena_names([r])
         sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])
@@ -538,7 +557,7 @@ def main(out, prev):
         r["cap"] = r["cap"] or (qcache.get(r["asin"]) or {}).get("cap")
         r["ppd"] = round(r["price"] / r["qty"], 3) if r["qty"] else None
         r["ppl"] = round(r["ppd"] / (r["cap"] / 1000), 3) if (r.get("ppd") and r.get("cap")) else None
-        r["ck"] = f"{r['pid']}|{r['size']}|"
+        r["ck"] = f"{r['pid']}|{r['size']}|{r.get('dims') or ''}"   # same compare key as scraper.py (boosters by dimensions)
 
     # history: only for listings checked today
     hfiles = load_docs(out, "history")

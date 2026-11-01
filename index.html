@@ -92,6 +92,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 /* table */
 .tablebox{overflow-x:auto;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-md)}
 table{border-collapse:collapse;width:100%;min-width:1240px}
+#grid.booster .c-size,#grid:not(.booster) .c-dim{display:none}
 th{position:sticky;top:0;background:var(--surface);z-index:1;text-align:left;font-weight:normal;border-bottom:2px solid var(--border);padding:0}
 th button{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:10px 8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px;line-height:16px;color:var(--muted);white-space:nowrap}
 th button[data-dir]{color:var(--ink)}
@@ -177,13 +178,15 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
   <div class="resultline"><span id="count">—</span><button id="reset" type="button">Clear filters</button></div>
 
   <div class="tablebox">
-    <table>
+    <table id="grid">
       <thead><tr>
         <th style="width:64px"><span class="sr" style="position:absolute;left:-9999px">Photo</span></th>
         <th><button data-k="name">Product</button></th>
         <th><button data-k="brand">Brand</button></th>
         <th><button data-k="store">Store</button></th>
-        <th><button data-k="size">Size</button></th>
+        <th class="c-size"><button data-k="size">Size</button></th>
+        <th class="num c-dim"><button data-k="dl" title="Length: the longer side, in inches">L</button></th>
+        <th class="num c-dim"><button data-k="dw" title="Width: the shorter side, in inches">W</button></th>
         <th><button data-k="pkg">Package</button></th>
         <th class="num"><button data-k="qty">Qty</button></th>
         <th class="num"><button data-k="price">Price</button></th>
@@ -194,7 +197,7 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
         <th><button data-k="nst">Compare</button></th>
         <th></th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="14" class="empty-state">Loading the catalogue. Prices appear here after the first daily scrape.</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="16" class="empty-state">Loading the catalogue. Prices appear here after the first daily scrape.</td></tr></tbody>
     </table>
     <div class="more" id="more" hidden><button type="button" id="more-btn">Show 100 more</button></div>
   </div>
@@ -277,7 +280,9 @@ const saved = restore();
 function rebuildRows(){
   const all = [];
   [...catDocs.keys()].sort().forEach(k => (catDocs.get(k).rows||[]).forEach(r => all.push({...r})));  // copy: database rows can be read-only, so derived fields (dname, hay…) must go on our own object
-  all.forEach(r => { r.cat = r.cat || (r.style==="Pull-up" ? "pullup" : "diaper"); r.dname = r.line || titleCase(r.name); r.ck = r.ck || r.id; r.hay = (r.dname+" "+r.name+" "+r.brand+" "+r.store+" "+(r.variant||"")).toLowerCase(); });
+  all.forEach(r => { r.cat = r.cat || (r.style==="Pull-up" ? "pullup" : "diaper"); r.dname = r.line || titleCase(r.name); r.ck = r.ck || r.id;
+    // booster dimensions '4.25" x 15"' -> L (longer side) and W (shorter side), in inches
+    const dm = r.dims && r.dims.match(/([\d.]+)\D+([\d.]+)/); if(dm){ const a=+dm[1], b=+dm[2]; r.dl = Math.max(a,b); r.dw = Math.min(a,b); } r.hay = (r.dname+" "+r.name+" "+r.brand+" "+r.store+" "+(r.variant||"")).toLowerCase(); });
   // cross-store comparison: group by product + size
   S.groups = new Map();
   all.forEach(r => { if(!S.groups.has(r.ck)) S.groups.set(r.ck, []); S.groups.get(r.ck).push(r); });
@@ -294,6 +299,8 @@ function setCat(cat, keepFilters){
   S.cat = cat; S.limit = 100;
   document.querySelectorAll("#tabs a").forEach(a => a.dataset.cat===cat ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
   $("#h-unit").textContent = "$/" + CATS[cat].one;
+  $("#grid").classList.toggle("booster", cat==="booster");   // boosters: L and W columns instead of Size
+  if(cat!=="booster" && (S.sort.k==="dl" || S.sort.k==="dw")) S.sort = {k:"ppd", dir:"asc"};
   const rows = catRows();
   const fill = (sel, vals, keep) => { const cur = keep ?? sel.value; sel.length = 1; vals.forEach(v => sel.add(new Option(v, v))); sel.value = vals.includes(cur) ? cur : ""; };
   fill($("#f-brand"), [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), firstFill ? saved?.b : undefined);
@@ -326,6 +333,7 @@ function filtered(){
   return list;
 }
 
+const inch = v => (Math.round(v*100)/100) + '"';
 function cmp(a, b){
   const {k, dir} = S.sort, m = dir==="asc" ? 1 : -1;
   let x = a[k], y = b[k];
@@ -343,17 +351,19 @@ function render(){
   const total = catRows().length;
   $("#count").textContent = S.rows.length ? `${list.length.toLocaleString()} of ${total.toLocaleString()} ${CATS[S.cat].one} listings` : "";
   const tb = $("#rows");
-  if(!S.rows.length){ tb.innerHTML = `<tr><td colspan="14" class="empty-state">No prices yet. The daily scrape fills this table; the first run populates every store.</td></tr>`; $("#more").hidden = true; return; }
-  if(!list.length){ tb.innerHTML = `<tr><td colspan="14" class="empty-state">No listings match these filters. Try clearing a filter or the search.</td></tr>`; $("#more").hidden = true; return; }
+  if(!S.rows.length){ tb.innerHTML = `<tr><td colspan="16" class="empty-state">No prices yet. The daily scrape fills this table; the first run populates every store.</td></tr>`; $("#more").hidden = true; return; }
+  if(!list.length){ tb.innerHTML = `<tr><td colspan="16" class="empty-state">No listings match these filters. Try clearing a filter or the search.</td></tr>`; $("#more").hidden = true; return; }
   tb.innerHTML = list.slice(0, S.limit).map((r, i) => {
     const th = S.thumbs[r.t];
     const d = r.prev!=null && r.prev!==r.price ? `<span class="delta ${r.price>r.prev?"up":"down"}">${r.price>r.prev?"▲":"▼"} from ${money(r.prev)}</span>` : "";
     return `<tr data-id="${esc(r.id)}">
       <td>${th ? `<img class="th" loading="lazy" alt="" src="${th}">` : `<div class="th empty"></div>`}</td>
-      <td><div class="pname">${esc(r.dname)}${r.variant?`<span class="var">${esc(r.variant)}</span>`:""}</div><div class="pbrand">${r.avail?"":(r.bo?'<span class="badge oos" title="The store still takes orders and ships once it is back in stock">Out of stock · backorder</span>':'<span class="badge oos">Out of stock</span>')} ${r.stale?'<span class="badge stale">Stale price</span>':""}</div></td>
+      <td><div class="pname">${esc(r.dname)}${r.variant?`<span class="var">${esc(r.variant)}</span>`:""}${r.cat==="booster" && r.size!=="One size"?`<span class="var">Size ${esc(r.size)}</span>`:""}</div><div class="pbrand">${r.avail?"":(r.bo?'<span class="badge oos" title="The store still takes orders and ships once it is back in stock">Out of stock · backorder</span>':'<span class="badge oos">Out of stock</span>')} ${r.stale?'<span class="badge stale">Stale price</span>':""}</div></td>
       <td>${esc(r.brand||"")}</td>
       <td>${esc(r.store)}</td>
-      <td>${esc(r.size)}${r.dims ? `<div class="pbrand">${esc(r.dims)}</div>` : ""}</td>
+      <td class="c-size">${esc(r.size)}</td>
+      <td class="num c-dim">${r.dl!=null ? inch(r.dl) : '<span class="muted">—</span>'}</td>
+      <td class="num c-dim">${r.dw!=null ? inch(r.dw) : '<span class="muted">—</span>'}</td>
       <td><span class="badge">${esc(r.pkg)}</span></td>
       <td class="num">${r.qty ?? '<span class="muted">—</span>'}</td>
       <td class="num">${money(r.price)}${d}</td>
@@ -398,7 +408,7 @@ async function openRow(id){
   const r = S.rows.find(x => x.id===id); if(!r) return;
   const dlg = $("#dlg"), body = $("#dlg-body");
   const one = (CATS[r.cat]||CATS.diaper).one;
-  const kv = [["Brand",r.brand],["Size",r.dims ? r.size+" · "+r.dims : r.size],["Capacity",r.cap?r.cap.toLocaleString()+" mL":"—"],["Variant",r.variant||"—"],["This listing",`${r.store} · ${r.pkg}${r.qty?` of ${r.qty}`:""}`],["Price",money(r.price)],["$/"+one,unit(r.ppd)],["Delivered $/"+one+" ("+$("#f-prov").value+")", !r.qty ? "—" : r.dpd==null ? "—" : r.shipq ? unit(r.dpd)+" + shipping (set at checkout)" : unit(r.dpd)+(r.ship===0?" · free shipping":" · +"+money(r.ship)+" shipping")],["Delivered $/L",r.dpl==null?"—":money(r.dpl)+(r.shipq?" + shipping":"")],["Tracked since",r.first||"—"],...(r.checked ? [["Price checked", r.checked]] : []),["Stock",r.avail?"In stock":"Out of stock"]];
+  const kv = [["Brand",r.brand],...(r.cat==="booster" ? [["Size (L × W)", r.dl!=null ? inch(r.dl)+" × "+inch(r.dw)+(r.size!=="One size"?" · "+r.size:"") : (r.size!=="One size"?r.size:"—")]] : [["Size", r.size]]),["Capacity",r.cap?r.cap.toLocaleString()+" mL":"—"],["Variant",r.variant||"—"],["This listing",`${r.store} · ${r.pkg}${r.qty?` of ${r.qty}`:""}`],["Price",money(r.price)],["$/"+one,unit(r.ppd)],["Delivered $/"+one+" ("+$("#f-prov").value+")", !r.qty ? "—" : r.dpd==null ? "—" : r.shipq ? unit(r.dpd)+" + shipping (set at checkout)" : unit(r.dpd)+(r.ship===0?" · free shipping":" · +"+money(r.ship)+" shipping")],["Delivered $/L",r.dpl==null?"—":money(r.dpl)+(r.shipq?" + shipping":"")],["Tracked since",r.first||"—"],...(r.checked ? [["Price checked", r.checked]] : []),["Stock",r.avail?"In stock":"Out of stock"]];
   const peers = (S.groups.get(r.ck)||[r]).slice().sort((a,b)=>(b.avail-a.avail)||((a.dpd??1e9)-(b.dpd??1e9)));
   const cmpTable = `<div class="cmpbox"><table class="cmp"><thead><tr><th>Store</th><th>Variant</th><th>Package</th><th class="num">Price</th><th class="num">$/${one}</th><th class="num">Delivered</th><th>Stock</th><th></th></tr></thead><tbody>${peers.map(p=>`<tr class="${p.id===r.id?"me":""}"><td>${esc(p.store)}</td><td>${esc(p.variant||"—")}</td><td>${esc(p.pkg)}${p.qty?` of ${p.qty}`:""}</td><td class="num">${money(p.price)}</td><td class="num">${unit(p.ppd)}</td><td class="num">${p.dpd!=null ? unit(p.dpd) + (p.shipq ? shipTag(p) : "") : '<span class="muted">—</span>'}${p.lowest?' <span class="best">Lowest</span>':""}</td><td>${p.avail?"In stock":'<span class="badge oos">Out</span>'}</td><td><a class="go" href="${esc(p.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`).join("")}</tbody></table></div>`;
   body.innerHTML = `<button class="close" type="button" id="dlg-close">Close</button>

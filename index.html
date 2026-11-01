@@ -40,6 +40,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:1
 .hero h1 em{font-style:normal;color:var(--aisle-blue)}
 .ship{display:block;font-size:11px;line-height:14px;font-weight:400;color:var(--muted)}
 .ship.free{color:var(--good);font-weight:600}
+.ship.q{color:var(--bad);font-weight:600}
 .shipnote{font-size:12px;line-height:18px;color:var(--muted)}
 .report{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-4);background:var(--surface);border:3px solid var(--aisle-ink);border-radius:var(--radius-md);padding:var(--space-4) 20px}
 :root[data-theme="dark"] .report{border-color:var(--shelf-purple)}
@@ -212,7 +213,7 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
 
   <footer>
     Unit price = package price ÷ units in the package. Capacity is the maker's stated absorbency in millilitres, taken from product pages (not lab-verified) and shared across every store that sells the same product; blank means no store publishes one. Delivered $/L = delivered unit price ÷ capacity in litres, so lower means more absorbency per dollar, shipping included. "Lowest" marks the cheapest in-stock delivered unit price (shipping to the chosen province included) for that product and size across stores; "Lowest price per product & size" uses the same delivered price.
-    <br><br><strong>Delivered</strong> = (package price + the store's cheapest standard shipping for an order of just that package to the chosen province) ÷ units in the package, before tax. Bags and samples usually fall under free-shipping minimums, so their delivered price can be far above the shelf price; a bigger mixed order would spread that shipping. "quote" means the store sets that shipping at checkout. <span id="shipfoot"></span>
+    <br><br><strong>Delivered</strong> = (package price + the store's cheapest standard shipping for an order of just that package to the chosen province) ÷ units in the package, before tax. Bags and samples usually fall under free-shipping minimums, so their delivered price can be far above the shelf price; a bigger mixed order would spread that shipping. "+ shipping" means the store sets shipping at checkout, so that figure is the price per unit before shipping. <span id="shipfoot"></span>
   </footer>
 </div>
 
@@ -233,12 +234,14 @@ function shipFee(store, subtotal, prov){
 function applyShip(){
   const prov = $("#f-prov").value || "ON";
   S.rows.forEach(r => {
-    r.ship = undefined; r.dpd = null;
+    r.ship = undefined; r.dpd = null; r.shipq = false;
     r.dpl = null;
     if(!r.qty) return;
     const f = shipFee(r.store, r.price, prov);
     r.ship = f;
-    if(f != null) r.dpd = Math.round((r.price + f) / r.qty * 1000) / 1000;
+    // shipping set at checkout: show the unit price before shipping, tagged "+ shipping", so the column stays comparable
+    r.shipq = f === null;
+    if(f !== undefined) r.dpd = Math.round((r.price + (f || 0)) / r.qty * 1000) / 1000;
     if(r.dpd != null && r.cap) r.dpl = Math.round(r.dpd / (r.cap / 1000) * 1000) / 1000;
   });
 }
@@ -246,14 +249,16 @@ function applyShip(){
 function markLowest(){
   if(!S.groups) return;
   S.groups.forEach(g => {
-    const live = g.filter(r => r.avail && r.dpd!=null && r.pkg!=="Sample");
+    const live = g.filter(r => r.avail && r.dpd!=null && !r.shipq && r.pkg!=="Sample");
     const low = live.length ? Math.min(...live.map(r => r.dpd)) : null;
-    g.forEach(r => { r.lowest = r.nst > 1 && low!=null && r.avail && r.pkg!=="Sample" && r.dpd===low; });
+    g.forEach(r => { r.lowest = r.nst > 1 && low!=null && r.avail && !r.shipq && r.pkg!=="Sample" && r.dpd===low; });
   });
 }
+const shipTag = r => `<span class="ship q" title="${esc(SHIP.stores[r.store]?.summary||"Shipping is set at checkout")}">+ shipping</span>`;
 function shipCell(r){
   if(!r.qty) return '<span class="muted">—</span>';
-  if(r.dpd == null) return `<span class="muted" title="${esc(SHIP.stores[r.store]?.summary||"No shipping data for this store")}">quote</span>`;
+  if(r.dpd == null) return `<span class="muted" title="No shipping data for this store">—</span>`;
+  if(r.shipq) return `${unit(r.dpd)}${shipTag(r)}`;
   return `${unit(r.dpd)}<span class="ship ${r.ship===0?"free":""}">${r.ship===0 ? "Free shipping" : "+"+money(r.ship)+" ship"}</span>`;
 }
 const CATS = {diaper:{hash:"diapers", one:"diaper", label:"Diapers", sub:"tab-style briefs"}, pullup:{hash:"pullups", one:"pull-up", label:"Pull-ups", sub:"pull-on protective underwear"}, booster:{hash:"boosters", one:"booster", label:"Boosters", sub:"booster pads and doublers"}};
@@ -355,7 +360,7 @@ function render(){
       <td class="num">${unit(r.ppd)}</td>
       <td class="num unit">${shipCell(r)}</td>
       <td class="num">${r.cap ? r.cap.toLocaleString()+" mL" : '<span class="muted">—</span>'}</td>
-      <td class="num">${r.dpl!=null ? money(r.dpl) : (r.cap && r.qty && r.dpd==null) ? '<span class="muted" title="Shipping is quoted at checkout">quote</span>' : '<span class="muted">—</span>'}</td>
+      <td class="num">${r.dpl!=null ? money(r.dpl) + (r.shipq ? shipTag(r) : "") : '<span class="muted">—</span>'}</td>
       <td>${r.lowest ? '<span class="best">Lowest</span> ' : ""}${r.nst>1 ? `<span class="nstores">${r.nst} stores</span>` : '<span class="muted">1 store</span>'}</td>
       <td><a class="go" href="${esc(r.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`;
   }).join("");
@@ -368,13 +373,13 @@ function renderTags(){
   const ok = catRows().filter(r => r.avail && r.ppd!=null && r.pkg!=="Sample");
   const one = CATS[S.cat].one;
   const best = f => ok.filter(f).sort((a,b)=>a.ppd-b.ppd)[0];
-  const bestL = ok.filter(r=>r.dpl!=null).sort((a,b)=>a.dpl-b.dpl)[0];
+  const bestL = ok.filter(r=>r.dpl!=null && !r.shipq).sort((a,b)=>a.dpl-b.dpl)[0];
   const tags = [
     [`Cheapest ${one}`, best(()=>true)],
     S.cat==="booster" ? ["Cheapest 1,000 mL+ booster", best(r=>r.cap>=1000)] : S.cat==="diaper" ? ["Cheapest 6,000 mL+ diaper", best(r=>r.cap>=6000)] : ["Cheapest 2,000 mL+ pull-up", best(r=>r.cap>=2000)],
     ["Cheapest by the bag", best(r=>r.pkg==="Bag")],
   ];
-  const dc = ok.filter(r=>r.dpd!=null).sort((a,b)=>a.dpd-b.dpd)[0];  // includes bags and cases; samples are excluded by ok
+  const dc = ok.filter(r=>r.dpd!=null && !r.shipq).sort((a,b)=>a.dpd-b.dpd)[0];  // includes bags and cases; samples are excluded by ok
   const html = tags.filter(t=>t[1]).map(([l,r]) => `<div class="shelf"><div class="lab">${l}</div><div class="nm" title="${esc(r.brand+" "+r.dname)}">${esc(r.brand)} ${esc(r.dname)} <span class="muted">· ${esc(r.size)} · ${esc(r.store)}</span></div><div class="unit"><small>UNIT PRICE</small><b>${unit(r.ppd)}</b><small>/${one}</small></div></div>`);
   if(bestL) html.push(`<div class="shelf"><div class="lab">Most capacity per dollar</div><div class="nm" title="${esc(bestL.brand+" "+bestL.dname)}">${esc(bestL.brand)} ${esc(bestL.dname)} <span class="muted">· ${bestL.cap.toLocaleString()} mL · ${esc(bestL.store)}</span></div><div class="unit"><small>PER LITRE, DELIVERED</small><b>${money(bestL.dpl)}</b><small>${unit(bestL.dpd)}/${one}</small></div></div>`);
   if(dc) html.push(`<div class="shelf"><div class="lab">Cheapest ${one}, delivered to ${esc($("#f-prov").value)}</div><div class="nm" title="${esc(dc.brand+" "+dc.dname)}">${esc(dc.brand)} ${esc(dc.dname)} <span class="muted">· ${esc(dc.size)} · ${esc(dc.store)}</span></div><div class="unit"><small>DELIVERED</small><b>${unit(dc.dpd)}</b><small>/${one}</small></div></div>`);
@@ -393,9 +398,9 @@ async function openRow(id){
   const r = S.rows.find(x => x.id===id); if(!r) return;
   const dlg = $("#dlg"), body = $("#dlg-body");
   const one = (CATS[r.cat]||CATS.diaper).one;
-  const kv = [["Brand",r.brand],["Size",r.dims ? r.size+" · "+r.dims : r.size],["Capacity",r.cap?r.cap.toLocaleString()+" mL":"—"],["Variant",r.variant||"—"],["This listing",`${r.store} · ${r.pkg}${r.qty?` of ${r.qty}`:""}`],["Price",money(r.price)],["$/"+one,unit(r.ppd)],["Delivered $/"+one+" ("+$("#f-prov").value+")", !r.qty ? "—" : r.dpd==null ? "Quoted at checkout" : unit(r.dpd)+(r.ship===0?" · free shipping":" · +"+money(r.ship)+" shipping")],["Delivered $/L",r.dpl==null?"—":money(r.dpl)],["Tracked since",r.first||"—"],...(r.checked ? [["Price checked", r.checked]] : []),["Stock",r.avail?"In stock":"Out of stock"]];
+  const kv = [["Brand",r.brand],["Size",r.dims ? r.size+" · "+r.dims : r.size],["Capacity",r.cap?r.cap.toLocaleString()+" mL":"—"],["Variant",r.variant||"—"],["This listing",`${r.store} · ${r.pkg}${r.qty?` of ${r.qty}`:""}`],["Price",money(r.price)],["$/"+one,unit(r.ppd)],["Delivered $/"+one+" ("+$("#f-prov").value+")", !r.qty ? "—" : r.dpd==null ? "—" : r.shipq ? unit(r.dpd)+" + shipping (set at checkout)" : unit(r.dpd)+(r.ship===0?" · free shipping":" · +"+money(r.ship)+" shipping")],["Delivered $/L",r.dpl==null?"—":money(r.dpl)+(r.shipq?" + shipping":"")],["Tracked since",r.first||"—"],...(r.checked ? [["Price checked", r.checked]] : []),["Stock",r.avail?"In stock":"Out of stock"]];
   const peers = (S.groups.get(r.ck)||[r]).slice().sort((a,b)=>(b.avail-a.avail)||((a.dpd??1e9)-(b.dpd??1e9)));
-  const cmpTable = `<div class="cmpbox"><table class="cmp"><thead><tr><th>Store</th><th>Variant</th><th>Package</th><th class="num">Price</th><th class="num">$/${one}</th><th class="num">Delivered</th><th>Stock</th><th></th></tr></thead><tbody>${peers.map(p=>`<tr class="${p.id===r.id?"me":""}"><td>${esc(p.store)}</td><td>${esc(p.variant||"—")}</td><td>${esc(p.pkg)}${p.qty?` of ${p.qty}`:""}</td><td class="num">${money(p.price)}</td><td class="num">${unit(p.ppd)}</td><td class="num">${p.qty ? (p.dpd==null ? '<span class="muted">quote</span>' : unit(p.dpd)) : '<span class="muted">—</span>'}${p.lowest?' <span class="best">Lowest</span>':""}</td><td>${p.avail?"In stock":'<span class="badge oos">Out</span>'}</td><td><a class="go" href="${esc(p.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`).join("")}</tbody></table></div>`;
+  const cmpTable = `<div class="cmpbox"><table class="cmp"><thead><tr><th>Store</th><th>Variant</th><th>Package</th><th class="num">Price</th><th class="num">$/${one}</th><th class="num">Delivered</th><th>Stock</th><th></th></tr></thead><tbody>${peers.map(p=>`<tr class="${p.id===r.id?"me":""}"><td>${esc(p.store)}</td><td>${esc(p.variant||"—")}</td><td>${esc(p.pkg)}${p.qty?` of ${p.qty}`:""}</td><td class="num">${money(p.price)}</td><td class="num">${unit(p.ppd)}</td><td class="num">${p.dpd!=null ? unit(p.dpd) + (p.shipq ? shipTag(p) : "") : '<span class="muted">—</span>'}${p.lowest?' <span class="best">Lowest</span>':""}</td><td>${p.avail?"In stock":'<span class="badge oos">Out</span>'}</td><td><a class="go" href="${esc(p.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`).join("")}</tbody></table></div>`;
   body.innerHTML = `<button class="close" type="button" id="dlg-close">Close</button>
     <div style="display:flex;gap:12px;align-items:center">${S.thumbs[r.t]?`<img class="th" style="width:72px;height:72px" alt="" src="${S.thumbs[r.t]}">`:""}<div><div class="pbrand">${esc(r.brand)}</div><h2>${esc(r.dname)}</h2></div></div>
     <div class="kv">${kv.map(([k,v])=>`<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>

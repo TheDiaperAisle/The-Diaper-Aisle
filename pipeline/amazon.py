@@ -22,9 +22,10 @@ import scraper as S
 
 MONTHLY_BUDGET = int(os.environ.get("AMAZON_CREDIT_BUDGET", "700"))
 CARRY_DAYS = 14
-# Listings whose title gives no clear piece count get their product page read once ('Number of Items'), 1 credit
+# Listings whose title gives no clear piece count or no size get their product page read once ('Number of Items',
+# 'Size'), 1 credit
 # each, at most this many a day, out of the day's search share. Results are kept per ASIN in meta.amazon.qty.
-PAGE_LOOKUPS = 5
+PAGE_LOOKUPS = 8
 PAGE_RETRY_DAYS = 45   # pages that gave no count are tried again after this long
 BASE = "https://www.amazon.ca"
 
@@ -182,6 +183,9 @@ def amazon_qty(title):
 
 
 def amazon_pkg(title, qty):
+    # 2-3 diapers is a sample pack, whatever the listing calls it (owner 2026-11-01, Little for Big 2 Pieces)
+    if (qty and qty <= 3) or re.search(r"\bsample\b|\btrial\b", title, re.I):
+        return "Sample"
     return "Case" if (re.search(r"\bcase\b", title, re.I) or (qty and qty > 40)) else "Bag"
 
 
@@ -212,6 +216,44 @@ def fetch_page(asin, key):
     return d.get("rawHtml") or "", int((d.get("metadata") or {}).get("creditsUsed") or 1)
 
 
+def print_name(title):
+    """'Little for Big Adjustable ... Cloth Back Diaper 2 Pieces - Little Beauty (Medium 28"-38")' -> ('Little Beauty', None).
+    Adult-baby listings put the product's print name after the piece count; the words before it are the same
+    for every print. -> (name, colour) or (None, None)."""
+    m = re.search(r"\d+\s*(?:pieces|pcs|pc|count|coun|ct|pack)\b\)?(?:\s*\(\d+\s*packs?\))?"
+                  r"(?:\s*pack\s+\d+\s+prints?\s+random\s+assorted|\s*sample\s+pack)?\s*[-–]\s*(.+)$", title, re.I)
+    if not m:
+        return None, None
+    t = re.split(r"[,(;|]", m.group(1))[0]
+    t = re.sub(r"\b\d[\d,.]*\s*(?:ml|l)\b", " ", t, flags=re.I)
+    t = re.sub(r"\b(?:adult\s+)?(?:printed\s+)?(?:diapers?|briefs?)\b", " ", t, flags=re.I)
+    t = re.sub(r"\s+(?:x{0,2}[sml]|xl|xxl|[sml]/[sml])\s*$", "", re.sub(r"\s+", " ", t).strip(), flags=re.I)
+    colour = None
+    mc = re.search(r"\s+(white|pink|blue|black|purple|green|yellow|grey|gray|red)\s*$", t, re.I)
+    if mc and len(t[:mc.start()].split()) >= 1:
+        colour, t = S.norm_variant(mc.group(1).title()), t[:mc.start()]
+    t = t.strip(" -–")
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z'’]+", t) if w.lower() not in GENERIC and len(w) > 2]
+    if not words:
+        return None, None
+    # 'Little for Big Ultra Absorbent 7000 mL ... - Goth Brat': the other stores call it 'Goth BRAT Ultra Absorbent'
+    if re.search(r"\bultra\s+absorbent\b", title[:m.start()], re.I) and "ultra" not in t.lower():
+        t += " Ultra Absorbent"
+    return t, colour
+
+
+def page_size(raw):
+    """Amazon product page -> the listing's size from its details table ('Size | Medium'), or None."""
+    for pat in (r"prodDetSectionEntry\">\s*Size\s*</th>\s*<td[^>]*>\s*([^<]{1,40}?)\s*</td>",
+                r">\s*Size\s*</span>\s*</td>\s*<td[^>]*>\s*<span[^>]*>\s*([^<]{1,40}?)\s*</span>"):
+        m = re.search(pat, raw)
+        if m:
+            sz = amazon_size(html.unescape(m.group(1)))
+            if sz != "One size":
+                return sz
+    return None
+
+
 def to_row(it, brand, today):
     title = re.sub(r"\bMd\b", "Medium", re.sub(r"\bLg\b", "Large", re.sub(r"\bSm\b", "Small", it["title"])))
     name = name_from_title(title)
@@ -225,6 +267,10 @@ def to_row(it, brand, today):
         if not cat:
             return None
     line, title_var = S.split_title("Amazon", p, brand)
+    pn, pn_colour = print_name(title) if brand in AB_BRANDS else (None, None)
+    if pn:
+        p2 = dict(p, title=f"{brand} {pn}")
+        line, title_var = S.split_title("Amazon", p2, brand)[0], title_var or pn_colour
     # 'Premium Adult Diapers, Abena Slip Disposable ..., Level 4' -> 'Slip Premium - Level 4' (owner, 2026-10-31):
     # the product line ('Slip', 'Pants') follows the brand later in the title, and the level is part of the name
     # at the other stores ('Slip Premium - Level 4'), so both are added to match them.
@@ -310,7 +356,7 @@ def main(out, prev):
     daily = MONTHLY_BUDGET / calendar.monthrange(y, mth)[1]
     n_today = int(min(len(QUERIES), remaining // days_left, math.ceil(daily * 1.5)))
     order = sorted(QUERIES, key=lambda q: (last.get(q, ""), QUERIES.index(q)))
-    reserve = min(PAGE_LOOKUPS, n_today // 4)   # credits kept for product-page counts
+    reserve = min(PAGE_LOOKUPS, n_today // 3)   # credits kept for product-page counts
     todo = order[:n_today - reserve]
 
     key = firecrawl_key()
@@ -358,6 +404,14 @@ def main(out, prev):
     seen_asins = {r["asin"] for r in found.values()}
     carried = [r for rid, r in prev_amz.items() if rid not in found and r.get("asin") not in seen_asins
                and (r.get("checked") or "") >= cutoff]
+    # re-read carried listings from their stored title, so parsing fixes reach them without a new search
+    for i, r in enumerate(carried):
+        if r.get("name", "").startswith(r["brand"] + " "):
+            it = {"asin": r["asin"], "title": r["name"][len(r["brand"]) + 1:], "price": r["price"], "img": None}
+            nr = to_row(it, r["brand"], r.get("checked"))
+            if nr and nr["cat"] == r["cat"]:
+                nr.pop("img", None)
+                carried[i] = nr
     amz = list(found.values()) + carried
     fresh = {id(r) for r in found.values()}
 
@@ -366,9 +420,12 @@ def main(out, prev):
     for r in amz:
         guess[r["asin"]] = amazon_qty(r["name"])
     retry = (datetime.date.fromisoformat(today) - datetime.timedelta(days=PAGE_RETRY_DAYS)).isoformat()
-    pending = sorted({a for a, (q, sure) in guess.items() if not sure and
-                      (a not in qcache or (not qcache[a].get("n") and qcache[a].get("d", "") < retry))},
-                     key=lambda a: (guess[a][0] is not None, a))
+    nosize = {r["asin"] for r in amz if r["size"] == "One size" and r["cat"] != "booster"}
+    def stale(a, k):
+        c = qcache.get(a)
+        return c is None or k not in c or (not c[k] and c.get("d", "") < retry)
+    pending = sorted({a for a, (q, sure) in guess.items() if (not sure and stale(a, "n")) or (a in nosize and stale(a, "size"))},
+                     key=lambda a: (a not in nosize, guess[a][0] is not None, a))
     lookups = 0
     for a in pending[:reserve if key else 0]:
         try:
@@ -381,7 +438,7 @@ def main(out, prev):
         st["used"] = st.get("used", 0) + used
         lookups += 1
         if 'id="productTitle"' in raw:   # a real product page, not a block or captcha page
-            qcache[a] = {"n": page_qty(raw), "d": today}
+            qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "d": today}
         time.sleep(1)
     status["pages"] = lookups
     status["credits_month"] = st["used"]
@@ -390,6 +447,8 @@ def main(out, prev):
     for r in amz:
         n = (qcache.get(r["asin"]) or {}).get("n") or guess[r["asin"]][0]
         r["qty"], r["pkg"] = n, amazon_pkg(r["name"], n)
+        if r["size"] == "One size" and (qcache.get(r["asin"]) or {}).get("size"):
+            r["size"] = qcache[r["asin"]]["size"]
         r["id"] = f"Amazon|{r['asin']}|{r['size']}|{r['pkg']}|{n}|{r['id'].split('|', 5)[5]}"
 
     # product facts from the other stores (name, capacity) when the product matches
@@ -426,7 +485,7 @@ def main(out, prev):
             continue
         p = r["id"].split("|")
         old = [k for k in hist if k.startswith(f"Amazon|{r['asin']}|") and k not in ids
-               and k.split("|")[2] == p[2] and k.split("|")[5:] == p[5:]]
+               and k.split("|")[2] in (p[2], "One size") and k.split("|")[5:] == p[5:]]
         if len(old) == 1:
             hist[r["id"]] = hist.pop(old[0])
     for r in amz:

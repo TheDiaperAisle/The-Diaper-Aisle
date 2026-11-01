@@ -64,6 +64,13 @@ def main():
     for k in out:
         if k not in prev and len(spare.get(loose(k), [])) == 1:
             renamed[k] = spare[loose(k)][0]
+    # a size found later (Amazon titles without one are 'One size' until the product page is read)
+    for k in out:
+        if k not in prev and k not in renamed:
+            x = k.split("|")
+            c = spare.get(tuple(x[:2] + ["One size"] + x[5:]), [])
+            if len(c) == 1:
+                renamed[k] = c[0]
     if len(set(renamed.values())) != len(renamed):
         renamed = {k: v for k, v in renamed.items() if list(renamed.values()).count(v) == 1}
 

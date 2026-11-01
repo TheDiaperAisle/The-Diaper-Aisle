@@ -600,13 +600,18 @@ KEY_ALIAS = {
     "diaper|abena|abri form premium": "diaper|abena|abri comfort form",
     "diaper|abena|abri form": "diaper|abena|abri comfort form",   # Amazon 'Abri-Form Premium XL4'
     "diaper|abena|abri comfort foil form white": "diaper|abena|abri comfort form",
-    "diaper|abena|4 abri backed comfort form level plastic": "diaper|abena|abri comfort form",   # Amazon 'Abri-Form Comfort Plastic-Backed'; all Abri-Form Comfort is plastic-backed   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
+    "diaper|abena|4 abri backed comfort form level plastic": "diaper|abena|abri comfort form",
+    # Little for Big 'Little Beauty': Healthwick 'Little Beauty Cloth Back', Amazon '... Cloth Back Diaper - Little Beauty'
+    # (owner 2026-11-01; 181 fl oz = 5353 mL, as at Healthwick)
+    "diaper|little for big|beauty little": "diaper|little for big|back beauty cloth little",
+    "diaper|little for big|abdry": "diaper|little for big|abdry white",   # Amazon '- ABDry White Diapers' (White read as the colour)   # Amazon 'Abri-Form Comfort Plastic-Backed'; all Abri-Form Comfort is plastic-backed   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
 }
 
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
 LINE_NAME = {
     "diaper|abena|abri comfort form": "Abri-Form Comfort",
     "pullup|abena|3 abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (all-caps title)
+    "diaper|little for big|back beauty cloth little": "Little Beauty",   # owner 2026-11-01
 }
 
 

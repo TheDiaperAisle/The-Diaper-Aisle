@@ -573,15 +573,22 @@ def main(out, prev):
     watch = st.setdefault("watch", {})
     known_rows = list(found.values()) + [r for r in prev_amz.values() if r["asin"] not in {x["asin"] for x in found.values()}]
     tracked = {r["asin"] for r in known_rows}
-    have = {(r["pid"], r["size"], r.get("qty")) for r in known_rows}
+
+    def combo(lab):
+        """'Overnight Medium(48 Count)' -> ('overnight', 'M', 48); colours are dropped, so colours of one size + pack match"""
+        style = re.sub(r"\b(?:white|pink|blue|black|purple|green|yellow|beige|grey|gray|red|orange|tie[- ]?dye)\b|\(.*?\)|\b\d+\b|"
+                       r"\b(?:count|pack|of|pieces|ct|x{0,3}-?(?:small|medium|large)|xl|xxl|xs|[sml](?:/[sml]|/xl)?|l/xl|s/m)\b", " ", lab.lower())
+        return (" ".join(style.split()), amazon_size(lab), amazon_qty(lab)[0])
     for r in known_rows:
-        for a2, lab in ((qcache.get(r["asin"]) or {}).get("sib") or {}).items():
+        sib = (qcache.get(r["asin"]) or {}).get("sib") or {}
+        have = {combo(l) for a2, l in sib.items() if a2 in tracked or a2 in watch}
+        for a2, lab in sib.items():
             if a2 in tracked or a2 in watch or a2 in NOT_TRACKED:
                 continue
-            combo = (r["pid"], amazon_size(lab), amazon_qty(lab)[0])
-            if combo[1] == "One size" or combo in have:
-                continue   # a colour of a size + pack the tracker already has
-            have.add(combo)
+            c = combo(lab)
+            if c in have:
+                continue   # another colour of a style + size + pack the tracker already has
+            have.add(c)
             watch[a2] = {"brand": r["brand"], "last": ""}
     due = sorted((w["last"], a) for a, w in watch.items() if a not in {x["asin"] for x in found.values()}
                  and w["last"] <= (datetime.date.fromisoformat(today) - datetime.timedelta(days=WATCH_DAYS)).isoformat())

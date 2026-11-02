@@ -20,7 +20,54 @@ import json, re, os, sys, glob, html, math, time, io, base64, datetime, calendar
 
 import scraper as S
 
-MONTHLY_BUDGET = int(os.environ.get("AMAZON_CREDIT_BUDGET", "700"))
+# Firecrawl credits (owner 2026-11-02: the account must NEVER go over its plan, or it upgrades to a paid plan).
+# The real balance is read from Firecrawl before any request (the billing cycle runs to the 28th and other use of the
+# account counts too). RESERVE_CREDITS are never spent by the tracker; every request checks first and is not sent if it
+# could dip into the reserve. If the balance cannot be read, no requests are made.
+RESERVE_CREDITS = 100
+MAX_CALL_COST = 5        # a basic scrape costs 1 credit; never start one with fewer than this left above the reserve
+_CREDITS = {"left": None}   # credits the tracker may still spend this run; None = balance not read -> no requests
+
+
+class CreditStop(Exception):
+    pass
+
+
+def credit_balance(key):
+    """Firecrawl account balance: {remainingCredits, planCredits, billingPeriodStart, billingPeriodEnd}"""
+    req = urllib.request.Request("https://api.firecrawl.dev/v2/team/credit-usage", headers={"Authorization": f"Bearer {key}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        d = json.load(r)["data"]
+    if not isinstance(d.get("remainingCredits"), (int, float)):
+        raise ValueError("no remainingCredits in the credit-usage reply")
+    return d
+
+
+def init_credits(key):
+    """Read the real balance; the tracker may then spend down to RESERVE_CREDITS. Call before any Firecrawl request."""
+    d = credit_balance(key)
+    _CREDITS.update(left=int(d["remainingCredits"]) - RESERVE_CREDITS, remaining=int(d["remainingCredits"]),
+                    plan=d.get("planCredits"), end=d.get("billingPeriodEnd"))
+    return d
+
+
+def _firecrawl_scrape(url, key):
+    """One Firecrawl scrape (raw HTML, Canada), guarded by the credit reserve. -> (raw html, credits used)"""
+    if _CREDITS["left"] is None:
+        raise CreditStop("Firecrawl balance not checked")
+    if _CREDITS["left"] < MAX_CALL_COST:
+        raise CreditStop(f"Firecrawl credit reserve reached ({RESERVE_CREDITS} kept)")
+    _CREDITS["left"] -= 1   # counted before sending, so a failed request still counts against the run
+    body = json.dumps({"url": url, "formats": ["rawHtml"], "location": {"country": "CA", "languages": ["en-CA"]},
+                       "proxy": "basic", "onlyMainContent": False, "removeBase64Images": True, "maxAge": 0}).encode()
+    req = urllib.request.Request("https://api.firecrawl.dev/v2/scrape", data=body, method="POST",
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        res = json.load(r)
+    d = res.get("data") or {}
+    used = int((d.get("metadata") or {}).get("creditsUsed") or 1)
+    _CREDITS["left"] -= max(0, used - 1)
+    return d.get("rawHtml") or "", used
 CARRY_DAYS = 14
 # Listings whose title leaves out the piece count, the size or the capacity (and no other store or CAP_BY_SIZE has
 # the capacity) get their product page read once, 1 credit each. Results are kept per ASIN in meta.amazon.qty.
@@ -98,15 +145,7 @@ def firecrawl_key():
 
 def fetch_search(query, key):
     """-> (raw html, credits used)"""
-    body = json.dumps({"url": f"{BASE}/s?k={urllib.parse.quote_plus(query)}", "formats": ["rawHtml"],
-                       "location": {"country": "CA", "languages": ["en-CA"]}, "proxy": "basic",
-                       "onlyMainContent": False, "removeBase64Images": True, "maxAge": 0}).encode()
-    req = urllib.request.Request("https://api.firecrawl.dev/v2/scrape", data=body, method="POST",
-                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        res = json.load(r)
-    d = res.get("data") or {}
-    return d.get("rawHtml") or "", int((d.get("metadata") or {}).get("creditsUsed") or 1)
+    return _firecrawl_scrape(f"{BASE}/s?k={urllib.parse.quote_plus(query)}", key)
 
 
 def tracked_brand(raw_brand, known):
@@ -313,15 +352,7 @@ def page_image(raw):
 
 def fetch_page(asin, key):
     """-> (raw html of the Amazon.ca product page, credits used)"""
-    body = json.dumps({"url": f"{BASE}/dp/{asin}", "formats": ["rawHtml"],
-                       "location": {"country": "CA", "languages": ["en-CA"]}, "proxy": "basic",
-                       "onlyMainContent": False, "removeBase64Images": True, "maxAge": 0}).encode()
-    req = urllib.request.Request("https://api.firecrawl.dev/v2/scrape", data=body, method="POST",
-                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        res = json.load(r)
-    d = res.get("data") or {}
-    return d.get("rawHtml") or "", int((d.get("metadata") or {}).get("creditsUsed") or 1)
+    return _firecrawl_scrape(f"{BASE}/dp/{asin}", key)
 
 
 def print_name(title):
@@ -455,7 +486,6 @@ def make_thumb(src, Image, label=None):
 
 def main(out, prev):
     today = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d")
-    month = today[:7]
     rows = []
     for f in load_docs(out, "catalog"):
         rows += json.load(open(f))["rows"]
@@ -468,8 +498,7 @@ def main(out, prev):
     if pm:
         prev_meta = json.load(open(pm[0]))
     st = (prev_meta.get("amazon") or {})
-    if st.get("month") != month:
-        st = {"month": month, "used": 0, "last": st.get("last", {}), "qty": st.get("qty", {})}
+    st.pop("month", None)
     qcache = st.setdefault("qty", {})
     last = st.get("last", {})
     prev_amz = {}
@@ -528,34 +557,44 @@ def main(out, prev):
             return nr
         return r
 
-    # how many searches today: an even share of this month's remaining budget
-    y, mth = int(today[:4]), int(today[5:7])
-    days_left = calendar.monthrange(y, mth)[1] - int(today[8:10]) + 1
-    remaining = max(0, MONTHLY_BUDGET - st.get("used", 0))
-    daily = MONTHLY_BUDGET / calendar.monthrange(y, mth)[1]
-    n_today = int(min(len(QUERIES), remaining // days_left, math.ceil(daily * 1.5)))
+    # how many credits today: an even share of what the account has left above the reserve until the cycle renews
+    key = firecrawl_key()
+    errors = []
+    bal = None
+    if key:
+        try:
+            bal = init_credits(key)
+        except Exception as e:  # noqa
+            errors.append(f"Firecrawl balance could not be read, no Amazon requests today: {e}")
+    usable = max(0, _CREDITS["left"] or 0)
+    end = (bal or {}).get("billingPeriodEnd") or ""
+    days_left = max(1, (datetime.date.fromisoformat(end[:10]) - datetime.date.fromisoformat(today)).days) if end else 30
+    share = usable // days_left
+    n_today = int(min(len(QUERIES), share))
     order = sorted(QUERIES, key=lambda q: (last.get(q, ""), QUERIES.index(q)))
     backlog = len({r["asin"] for r in map(reparse, prev_amz.values()) if r and wants_page(r)})
     n_search = max(min(MIN_SEARCHES, n_today), n_today - backlog) if backlog else n_today
-    reserve = max(0, min(PAGE_LOOKUPS, backlog, remaining - n_search))   # credits kept for product pages
+    reserve = max(0, min(PAGE_LOOKUPS, backlog, 2 * share - n_search, usable - n_search))   # credits for product pages
     todo = order[:n_search]
 
-    key = firecrawl_key()
-    status = {"ok": True, "searches": 0, "credits_month": st.get("used", 0)}
-    found, errors = {}, []
+    status = {"ok": True, "searches": 0}
+    found = {}
+    if bal is None:
+        todo = []
     if not key:
         status = {"ok": False, "error": "no Firecrawl key (add project doc dip-aisle/firecrawl.key)"}
         todo = []
     for qy in todo:
         try:
             raw, used = fetch_search(qy, key)
+        except CreditStop as e:
+            errors.append(str(e))
+            break
         except Exception as e:  # noqa
             errors.append(f"{qy}: {e}")
-            if "402" in str(e):  # out of credits until the monthly reset
-                st["used"] = MONTHLY_BUDGET
+            if "402" in str(e):  # out of credits until the cycle renews
                 break
             continue
-        st["used"] = st.get("used", 0) + used
         status["searches"] += 1
         items = parse_results(raw)
         if not items:
@@ -573,7 +612,6 @@ def main(out, prev):
                 found[r["id"]] = r
         time.sleep(1)
     st["last"] = last
-    status["credits_month"] = st["used"]
     if errors:
         status["errors"] = errors[:5]
         if not found and todo:
@@ -605,15 +643,15 @@ def main(out, prev):
     due = sorted((w["last"], a) for a, w in watch.items() if a not in {x["asin"] for x in found.values()}
                  and w["last"] <= (datetime.date.fromisoformat(today) - datetime.timedelta(days=WATCH_DAYS)).isoformat())
     status["watched"] = 0
-    for _, a in due[:WATCH_PAGES if key else 0]:
-        if st.get("used", 0) >= MONTHLY_BUDGET:
-            break
+    for _, a in due[:WATCH_PAGES if bal else 0]:
         try:
             raw, used = fetch_page(a, key)
+        except CreditStop as e:
+            errors.append(str(e))
+            break
         except Exception as e:  # noqa
             errors.append(f"page {a}: {e}")
             continue
-        st["used"] = st.get("used", 0) + used
         watch[a]["last"] = today
         off = page_offer(raw)
         if not off:
@@ -629,7 +667,6 @@ def main(out, prev):
                          "dims": S.dims_of(page_text(raw)) if nr["cat"] == "booster" else None, "sib": page_siblings(raw), "d": today}
             status["watched"] += 1
         time.sleep(1)
-    status["credits_month"] = st["used"]
 
     # carry forward listings not seen today (until CARRY_DAYS old)
     cutoff = (datetime.date.fromisoformat(today) - datetime.timedelta(days=CARRY_DAYS)).isoformat()
@@ -646,7 +683,7 @@ def main(out, prev):
     pending = sorted((k, a) for a, k in ((r["asin"], wants_page(r)) for r in amz) if k)
     pending = list(dict.fromkeys(a for k, a in pending))
     lookups = 0
-    for a in pending[:reserve if key else 0]:
+    for a in pending[:reserve if bal else 0]:
         try:
             for wait in (20, 40, 0):   # Firecrawl rate limit (HTTP 429): wait and try again
                 try:
@@ -656,12 +693,14 @@ def main(out, prev):
                     if "429" not in str(e) or not wait:
                         raise
                     time.sleep(wait)
+        except CreditStop as e:
+            errors.append(str(e))
+            break
         except Exception as e:  # noqa
             errors.append(f"page {a}: {e}")
             if "402" in str(e):
                 break
             continue
-        st["used"] = st.get("used", 0) + used
         lookups += 1
         if 'id="productTitle"' in raw:   # a real product page, not a block or captcha page
             r = by_asin[a]
@@ -671,7 +710,12 @@ def main(out, prev):
         time.sleep(1)
     status["pages"] = lookups
     status["pages_waiting"] = max(0, len(pending) - lookups)
-    status["credits_month"] = st["used"]
+    # Firecrawl account after this run (estimate; read fresh from Firecrawl at the next run)
+    if bal:
+        st["credits"] = {"plan": bal.get("planCredits"), "remaining_est": _CREDITS["left"] + RESERVE_CREDITS,
+                         "reserve": RESERVE_CREDITS, "cycle_end": (bal.get("billingPeriodEnd") or "")[:10]}
+        status["credits_left"] = _CREDITS["left"] + RESERVE_CREDITS
+    st.pop("used", None)
     if errors:
         status["errors"] = errors[:5]
     for r in amz:
@@ -816,7 +860,7 @@ def main(out, prev):
     meta["catalogDocs"], meta["historyDocs"], meta["thumbDocs"] = counts["catalog"], counts["history"], counts["thumbs"]
     json.dump(meta, open(meta_f, "w"), indent=1)
     print(json.dumps({"searches": status.get("searches", 0), "fresh": len(found), "carried": len(carried),
-                      "credits_used_this_month": st["used"], "budget": MONTHLY_BUDGET, "errors": errors[:5]}))
+                      "credits": st.get("credits"), "errors": errors[:5]}))
 
 
 if __name__ == "__main__":

@@ -94,6 +94,8 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .ms-head button{font:inherit;font-size:12px;font-weight:700;background:none;border:0;color:var(--accent);cursor:pointer;text-transform:uppercase;letter-spacing:.06em;padding:2px 0}
 .field .ms-pop label{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:14px;line-height:18px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink)}
 .field .ms-pop label:hover{background:var(--row-hover)}
+.field .ms-pop label .muted{margin-left:auto;padding-left:12px;font-size:12px;font-variant-numeric:tabular-nums}
+.field .ms-pop label.blank{font-style:italic;border-bottom:1px solid var(--line);border-radius:4px 4px 0 0;margin-bottom:2px}
 .tabs a.tab-link{margin-left:auto}
 /* pop-up: rows and sizes switch to another listing */
 .cmp tbody tr{cursor:pointer}
@@ -191,7 +193,7 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
     <div class="field"><span class="flab" id="l-size">Size</span><details class="ms" id="f-size" data-all="All sizes" data-noun="sizes"><summary aria-describedby="l-size">All sizes</summary><div class="ms-pop" role="group" aria-labelledby="l-size"></div></details></div>
     <div class="field"><span class="flab" id="l-pkg">Package</span><details class="ms" id="f-pkg" data-all="All packages" data-noun="packages"><summary aria-describedby="l-pkg">All packages</summary><div class="ms-pop" role="group" aria-labelledby="l-pkg"></div></details></div>
     <div class="field"><span class="flab" id="l-var">Colour / scent</span><details class="ms" id="f-var" data-all="All variants" data-noun="variants"><summary aria-describedby="l-var">All variants</summary><div class="ms-pop" role="group" aria-labelledby="l-var"></div></details></div>
-    <div class="field"><label for="f-abs">Capacity</label><select id="f-abs"><option value="">Any</option></select></div>
+    <div class="field"><span class="flab" id="l-cap">Capacity</span><details class="ms" id="f-cap" data-all="Any capacity" data-noun="ranges"><summary aria-describedby="l-cap">Any capacity</summary><div class="ms-pop" role="group" aria-labelledby="l-cap"></div></details></div>
     <div class="field"><label for="f-prov">Ship to</label><select id="f-prov"><option value="ON">Ontario</option><option value="QC">Quebec</option><option value="BC">British Columbia</option><option value="AB">Alberta</option><option value="MB">Manitoba</option><option value="SK">Saskatchewan</option><option value="NS">Nova Scotia</option><option value="NB">New Brunswick</option><option value="PE">Prince Edward Island</option><option value="NL">Newfoundland and Labrador</option></select></div>
     <label class="check" for="f-stock"><input id="f-stock" type="checkbox"> In stock only</label>
     <label class="check" for="f-best"><input id="f-best" type="checkbox"> Lowest price per product &amp; size</label>
@@ -248,7 +250,14 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
 <script>
 const $ = s => document.querySelector(s);
 const SIZE_ORDER = ["XXS","XS","S","S/M","M","M/L","L","L/XL","Regular","XL","XXL","3XL","4XL","One size"];
-const CAP_STEPS = {diaper:[2000,4000,6000,8000,10000], pullup:[1000,2000,3000,4000], booster:[250,500,1000,2000]};
+// capacity ranges per tab (upper ends, mL); the last range is open-ended
+const CAP_BINS = {diaper:[1000,2000,3000,4000,5000,6000,8000,10000], pullup:[500,1000,1500,2000,3000], booster:[250,500,1000,2000]};
+function capOptions(cat){
+  const o = []; let lo = 1;
+  CAP_BINS[cat].forEach(h => { o.push([`${lo}-${h}`, lo === 1 ? `Up to ${h.toLocaleString()} mL` : `${lo.toLocaleString()} mL to ${h.toLocaleString()} mL`]); lo = h + 1; });
+  o.push([`${lo}-`, `${lo.toLocaleString()} mL or more`]);
+  return o;
+}
 const PKG_RANK = {Sample:0,Bag:1,Case:2};
 // Shipping rules per store and province: [[order subtotal from, fee], ...]; fee null = quoted at checkout. Checked 2026-10-30.
 const SHIP = {"checked":"2026-10-30","stores":{"Healthwick":{"summary":"Flat fee per order with no free-shipping threshold (a $380 test order was still charged the flat fee). Free pick-up in Oakville, ON.","source":"Checkout quote, ON/QC/AB/BC/NS","verified":true,"rules":{"QC":[[0,15]],"MB":[[0,15]],"AB":[[0,15]],"SK":[[0,15]],"BC":[[0,18]],"NB":[[0,18]],"NS":[[0,18]],"PE":[[0,18]],"NL":[[0,18]],"ON":[[0,12]]}},"AgeComfort":{"summary":"$12.99 under $100, free at $100+ before tax. Remote air-stage areas pay $49.99.","source":"Shipping policy page","verified":false,"rules":{"ON":[[0,12.99],[100,0]],"QC":[[0,12.99],[100,0]],"MB":[[0,12.99],[100,0]],"AB":[[0,12.99],[100,0]],"SK":[[0,12.99],[100,0]],"BC":[[0,12.99],[100,0]],"NB":[[0,12.99],[100,0]],"NS":[[0,12.99],[100,0]],"PE":[[0,12.99],[100,0]],"NL":[[0,12.99],[100,0]]}},"MyDips":{"summary":"ON and QC: $14.99 under $129, $12.99 at $129+. AB, MB, SK, PE, NS, BC: $24.99. NL quoted by Canada Post; NB not listed. Never free.","source":"Shipping policy page","verified":false,"rules":{"ON":[[0,14.99],[129,12.99]],"QC":[[0,14.99],[129,12.99]],"MB":[[0,24.99]],"AB":[[0,24.99]],"SK":[[0,24.99]],"BC":[[0,24.99]],"NS":[[0,24.99]],"PE":[[0,24.99]],"NB":[[0,null]],"NL":[[0,null]]}},"ABUniverse":{"summary":"Free economy shipping on every order, even one pack.","source":"Checkout quote, ON/BC, 1 to 8 packs","verified":true,"rules":{"ON":[[0,0]],"QC":[[0,0]],"MB":[[0,0]],"AB":[[0,0]],"SK":[[0,0]],"BC":[[0,0]],"NB":[[0,0]],"NS":[[0,0]],"PE":[[0,0]],"NL":[[0,0]]}},"Amazon":{"summary":"Free shipping on $35+ of items sold or fulfilled by Amazon (always free with Prime). Below $35, and for some third-party sellers, shipping is set at checkout.","source":"Amazon.ca help page 'Order with Free Shipping by Amazon'","verified":false,"rules":{"ON":[[0,null],[35,0]],"QC":[[0,null],[35,0]],"MB":[[0,null],[35,0]],"AB":[[0,null],[35,0]],"SK":[[0,null],[35,0]],"BC":[[0,null],[35,0]],"NB":[[0,null],[35,0]],"NS":[[0,null],[35,0]],"PE":[[0,null],[35,0]],"NL":[[0,null],[35,0]]}},"Rearz":{"summary":"Free at $100+ to every province except NB, NS, PE and NL. Otherwise the carrier quote minus 25% of the order value.","source":"Shipping & Returns and Shipping Discounts pages","verified":false,"rules":{"ON":[[0,null],[100,0]],"QC":[[0,null],[100,0]],"MB":[[0,null],[100,0]],"AB":[[0,null],[100,0]],"SK":[[0,null],[100,0]],"BC":[[0,null],[100,0]],"NB":[[0,null]],"NS":[[0,null]],"PE":[[0,null]],"NL":[[0,null]]}}}};
@@ -297,26 +306,40 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const titleCase = s => /[a-z]/.test(s) ? s : s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAm Pm\b/,"AM PM");
 
 // Each tab (diapers, pull-ups, boosters) keeps its own filters, store picks and sort; the ship-to province is shared.
-const BLANK = () => ({q:"", b:[], sz:[], p:[], a:"", vr:[], s:false, best:false, stores:[], sort:{k:"ppd", dir:"asc"}});
+const BLANK = () => ({q:"", b:[], sz:[], p:[], a:[], vr:[], s:false, best:false, stores:[], sort:{k:"ppd", dir:"asc"}});
 const arr = v => Array.isArray(v) ? v : (v ? [v] : []);   // filters saved before multi-select were single values
 // multi-select filters
 function msGet(id){ return [...$("#"+id).querySelectorAll(".ms-pop input:checked")].map(i => i.value); }
 function msLabel(id){
   const d = $("#"+id), v = msGet(id);
-  d.querySelector("summary").textContent = !v.length ? d.dataset.all : v.length===1 ? v[0] : v.length + " " + d.dataset.noun;
+  const one = v.length===1 ? d.querySelector(".ms-pop input:checked").dataset.label : "";
+  d.querySelector("summary").textContent = !v.length ? d.dataset.all : v.length===1 ? one : v.length + " " + d.dataset.noun;
   d.classList.toggle("on", v.length > 0);
   const n = d.querySelector(".ms-head span"); if(n) n.textContent = v.length ? v.length + " selected" : "Any";
 }
-function msFill(id, vals, sel){
-  const keep = new Set(arr(sel)), pop = $("#"+id+" .ms-pop");
+// 'Blank' finds listings missing that piece of information (owner 2026-11-02: troubleshooting)
+const BL = "__blank";
+const BLANK_LABEL = {"f-brand":"Blank (no brand)", "f-size":"Blank (no size)", "f-pkg":"Blank (no pack count)", "f-var":"Blank (no colour or scent)", "f-cap":"Blank (no capacity)"};
+const MATCH = {
+  "f-brand": (r, v) => v===BL ? !r.brand : r.brand===v,
+  "f-size": (r, v) => v===BL ? (r.cat==="booster" ? r.dl==null : r.size==="One size") : r.size===v,   // boosters: no L x W
+  "f-pkg": (r, v) => v===BL ? !r.qty : r.pkg===v,
+  "f-var": (r, v) => v===BL ? !r.variant : r.variant===v,
+  "f-cap": (r, v) => { if(v===BL) return !r.cap; const [lo, hi] = v.split("-").map(Number); return r.cap >= lo && (!hi || r.cap <= hi); },
+};
+function msFill(id, opts, sel){   // opts: values or [value, label]; a Blank choice goes first; counts are for this tab
+  const keep = new Set(arr(sel)), pop = $("#"+id+" .ms-pop"), rows = catRows();
+  const list = [[BL, BLANK_LABEL[id]], ...opts.map(o => Array.isArray(o) ? o : [o, o])]
+    .map(([v, l]) => [v, l, rows.filter(r => MATCH[id](r, v)).length])
+    .filter(([v, , n]) => n || v===BL || keep.has(v));
   pop.innerHTML = `<div class="ms-head"><span></span><button type="button" data-clear>Clear</button></div>` +
-    vals.map(v => `<label><input type="checkbox" value="${esc(v)}"${keep.has(v)?" checked":""}> ${esc(v)}</label>`).join("");
+    list.map(([v, l, n]) => `<label${v===BL?' class="blank"':""}><input type="checkbox" value="${esc(v)}" data-label="${esc(l)}"${keep.has(v)?" checked":""}> ${esc(l)} <span class="muted">${n.toLocaleString()}</span></label>`).join("");
   msLabel(id);
 }
-const MS = ["f-brand","f-size","f-pkg","f-var"];
+const MS = ["f-brand","f-size","f-pkg","f-var","f-cap"];
 S.F = {diaper:BLANK(), pullup:BLANK(), booster:BLANK()};
 function readFilters(){   // the visible controls -> this tab's saved filters
-  S.F[S.cat] = {q:$("#q").value, b:msGet("f-brand"), sz:msGet("f-size"), p:msGet("f-pkg"), a:$("#f-abs").value, vr:msGet("f-var"),
+  S.F[S.cat] = {q:$("#q").value, b:msGet("f-brand"), sz:msGet("f-size"), p:msGet("f-pkg"), a:msGet("f-cap"), vr:msGet("f-var"),
                 s:$("#f-stock").checked, best:$("#f-best").checked, stores:[...S.stores], sort:S.sort};
 }
 function remember(){ readFilters(); try{ localStorage.setItem("dipaisle.f2", JSON.stringify({prov:$("#f-prov").value, tabs:S.F})); }catch(e){} }
@@ -362,8 +385,7 @@ function setCat(cat, keepFilters){
   msFill("f-size", [...new Set(rows.map(r => r.size))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b)), F.sz);
   msFill("f-pkg", ["Sample","Bag","Case"].filter(v => rows.some(r => r.pkg===v)), F.p);
   msFill("f-var", [...new Set(rows.map(r => r.variant).filter(Boolean))].sort(), F.vr);
-  const fa = $("#f-abs"); fa.length = 1; CAP_STEPS[cat].forEach(v => fa.add(new Option(v.toLocaleString()+" mL or more", v))); fa.add(new Option("Has a mL rating", 1));
-  fa.value = [...fa.options].some(o => o.value === String(F.a)) ? String(F.a) : "";
+  msFill("f-cap", capOptions(cat), F.a);
   if(S.rows.length) firstFill = false;
   renderStores(); render(); renderTags();
 }
@@ -378,10 +400,10 @@ function renderStores(){
 
 function filtered(){
   const q = $("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const [b, sz, p, vr] = MS.map(id => new Set(msGet(id))), a = +$("#f-abs").value, stock = $("#f-stock").checked;
+  const picks = MS.map(id => [MATCH[id], msGet(id)]).filter(([, v]) => v.length), stock = $("#f-stock").checked;
   let list = catRows().filter(r =>
-    (!S.stores.size || S.stores.has(r.store)) && (!b.size || b.has(r.brand)) && (!sz.size || sz.has(r.size)) && (!p.size || p.has(r.pkg)) && (!vr.size || vr.has(r.variant)) &&
-    (!a || (r.cap||0) >= a) && (!stock || r.avail) && q.every(w => r.hay.includes(w)));
+    (!S.stores.size || S.stores.has(r.store)) && picks.every(([m, vals]) => vals.some(v => m(r, v))) &&
+    (!stock || r.avail) && q.every(w => r.hay.includes(w)));
   if($("#f-best").checked){   // keep the cheapest unit price per product + size among the matches
     const top = new Map();
     list.forEach(r => { if(r.dpd==null) return; const t = top.get(r.ck); const better = !t || (r.avail && !t.avail) || (r.avail===t.avail && r.dpd < t.dpd); if(better) top.set(r.ck, r); });
@@ -511,7 +533,7 @@ function drawHist(h){
 // events
 let t;
 $("#q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { S.limit=100; render(); remember(); }, 120); });
-["#f-abs","#f-stock","#f-best"].forEach(s => $(s).addEventListener("change", () => { S.limit=100; render(); remember(); }));
+["#f-stock","#f-best"].forEach(s => $(s).addEventListener("change", () => { S.limit=100; render(); remember(); }));
 MS.forEach(id => {
   const d = $("#"+id);
   d.addEventListener("change", () => { msLabel(id); S.limit=100; render(); remember(); });
@@ -525,7 +547,7 @@ $("#storebar").addEventListener("click", e => { const b = e.target.closest("butt
 document.querySelector("thead").addEventListener("click", e => { const b = e.target.closest("button[data-k]"); if(!b) return; const k=b.dataset.k; S.sort = S.sort.k===k ? {k, dir:S.sort.dir==="asc"?"desc":"asc"} : {k, dir: ["name","brand","store","size","pkg","ppd","dpd","ppl","dpl","price","qty"].includes(k) ? "asc" : "desc"}; render(); remember(); });
 $("#more-btn").addEventListener("click", () => { S.limit += 100; render(); });
 $("#rows").addEventListener("click", e => { if(e.target.closest("a")) return; const tr = e.target.closest("tr[data-id]"); if(tr) openRow(tr.dataset.id); });
-$("#reset").addEventListener("click", () => { $("#q").value=""; $("#f-abs").value=""; document.querySelectorAll(".ms-pop input").forEach(i => i.checked = false); MS.forEach(msLabel); $("#f-stock").checked=false; $("#f-best").checked=false; S.stores.clear(); S.limit=100; renderStores(); render(); remember(); });
+$("#reset").addEventListener("click", () => { $("#q").value=""; document.querySelectorAll(".ms-pop input").forEach(i => i.checked = false); MS.forEach(msLabel); $("#f-stock").checked=false; $("#f-best").checked=false; S.stores.clear(); S.limit=100; renderStores(); render(); remember(); });
 $("#dlg").addEventListener("click", e => { if(e.target.id==="dlg") e.target.close(); });
 // inside the pop-up: a store row or a size button switches to that listing
 $("#dlg-body").addEventListener("click", e => { if(e.target.closest("a")) return; const t = e.target.closest("[data-id]"); if(t) openRow(t.dataset.id); });

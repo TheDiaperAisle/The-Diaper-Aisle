@@ -30,8 +30,9 @@ PAGE_LOOKUPS = 40
 MIN_SEARCHES = 8
 # Other pack sizes of tracked products that searches never show (Amazon lists one or two versions of a product per
 # search; Sunkiss Masterpiece 40-count cases were missing, owner 2026-11-02). A product page names all its versions;
-# a version with a size + pack count the tracker lacks for that product is watched: its own page is read for the price,
-# at most WATCH_PAGES a day, each about once a week (carried forward in between). Colour-only versions are skipped.
+# a version (style or colour + size + pack count) the tracker lacks is watched: its own page is read for price and stock,
+# at most WATCH_PAGES a day, each about once a week (carried forward in between). Colours count: each has its own stock
+# (owner 2026-11-02).
 WATCH_PAGES = 4
 WATCH_DAYS = 7
 PAGE_RETRY_DAYS = 45   # pages that gave no count are tried again after this long
@@ -575,8 +576,9 @@ def main(out, prev):
     tracked = {r["asin"] for r in known_rows}
 
     def combo(lab):
-        """'Overnight Medium(48 Count)' -> ('overnight', 'M', 48); colours are dropped, so colours of one size + pack match"""
-        style = re.sub(r"\b(?:white|pink|blue|black|purple|green|yellow|beige|grey|gray|red|orange|tie[- ]?dye)\b|\(.*?\)|\b\d+\b|"
+        """'Overnight Medium(48 Count)' -> ('overnight', 'M', 48); 'Blue S/M(Pack of 40)' -> ('blue', 'S/M', 40): each colour has
+        its own stock, so colours are separate versions (owner 2026-11-02)"""
+        style = re.sub(r"\(.*?\)|\b\d+\b|"
                        r"\b(?:count|pack|of|pieces|ct|x{0,3}-?(?:small|medium|large)|xl|xxl|xs|[sml](?:/[sml]|/xl)?|l/xl|s/m)\b", " ", lab.lower())
         return (" ".join(style.split()), amazon_size(lab), amazon_qty(lab)[0])
     for r in known_rows:
@@ -587,7 +589,7 @@ def main(out, prev):
                 continue
             c = combo(lab)
             if c in have:
-                continue   # another colour of a style + size + pack the tracker already has
+                continue   # the same style/colour + size + pack the tracker already has
             have.add(c)
             watch[a2] = {"brand": r["brand"], "last": ""}
     due = sorted((w["last"], a) for a, w in watch.items() if a not in {x["asin"] for x in found.values()}

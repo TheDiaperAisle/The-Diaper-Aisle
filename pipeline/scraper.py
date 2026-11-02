@@ -256,8 +256,9 @@ SIZE_PATTERNS = [
     (r"\b(2xl|xxl|2x\b|xx-?large|2x-?large|x-?large\s*\+|xlarge\+|xl\+|bariatric)", "XXL"),
     (r"\b(xl|x-?large|extra\s*large)\b", "XL"),
     (r"\b(regular|r)\b", "Regular"), (r"\b(small|s)\b", "S"), (r"\b(medium|m)\b", "M"), (r"\b(large|l)\b", "L"),
+    (r"\b(youth|junior)\b", "Youth/Junior"),   # only when nothing else names a size (owner 2026-11-02)
 ]
-SIZE_ORDER = ["XXS", "XS", "S", "S/M", "M", "M/L", "L", "L/XL", "Regular", "XL", "XXL", "3XL", "4XL", "5XL", "One size"]
+SIZE_ORDER = ["Youth/Junior", "XXS", "XS", "S", "S/M", "M", "M/L", "L", "L/XL", "Regular", "XL", "XXL", "3XL", "4XL", "5XL", "One size"]
 
 
 def size_of(s):
@@ -662,7 +663,8 @@ KEY_ALIAS = {
     # Little for Big 'Little Beauty': Healthwick 'Little Beauty Cloth Back', Amazon '... Cloth Back Diaper - Little Beauty'
     # (owner 2026-11-01; 181 fl oz = 5353 mL, as at Healthwick)
     "diaper|little for big|beauty little": "diaper|little for big|back beauty cloth little",
-    "diaper|tena|european max slip": "diaper|tena|max slip",   # Rearz 'Tena Slip Maxi (European)' = TENA Slip Maxi (owner 2026-11-01)
+    "diaper|tena|european max slip": "diaper|tena|max slip",
+    "diaper|rearz|alpaca nighttime": "diaper|rearz|alpaca overnight",   # Amazon 'Rearz Alpaca Nighttime Diapers' (owner 2026-11-02)   # Rearz 'Tena Slip Maxi (European)' = TENA Slip Maxi (owner 2026-11-01)
     "diaper|little for big|abdry": "diaper|little for big|abdry white",   # Amazon '- ABDry White Diapers' (White read as the colour)   # Amazon 'Abri-Form Comfort Plastic-Backed'; all Abri-Form Comfort is plastic-backed   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
 }
 
@@ -747,7 +749,7 @@ def abena_names(rows):
         base = re.sub(r"\s*-\s*level\s*\d\b", "", base, flags=re.I)
         base = ABENA_CODE.sub("", base)
         base = re.sub(r"\s{2,}", " ", base).strip(" -")
-        code = r["size"].replace("/", "-") if r["size"] not in ("One size", "Regular") else None
+        code = r["size"].replace("/", "-") if r["size"] not in ("One size", "Regular", "Youth/Junior") else None
         if lvl and code:
             r["line"] = f"{base} {code}{lvl}"
         elif lvl:

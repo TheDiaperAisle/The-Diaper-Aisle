@@ -53,7 +53,9 @@ for _canon, _pat in (("Sunkiss", r"sunkiss\b"), ("Landofgenie", r"land ?of ?geni
     if _canon not in dict(S.BRANDS) or _canon == "Little for Big":
         S.BRANDS.append((_canon, _pat))
 # Owner-supplied capacities (mL) that the store shows only in an image, by product key and size.
-CAP_BY_SIZE = {
+CAP_BY_SIZE = {   # "*" = every size
+    # Sunkiss Masterpiece, every size and colour: 6000 mL from the product photo (owner 2026-11-02, B0C9VSXGZ3)
+    "diaper|sunkiss|masterpiece": {"*": 6000},
     # Sunkiss TrustPlus Adult Diapers with Tabs, from the product image (owner, 2026-10-31)
     "diaper|sunkiss|trustplus": {"S": 1300, "M": 1600, "L": 2000, "XL": 2300, "XXL": 2600},
     # Abena Slip Flexi-Fit Premium M-L4: 'Absorbs up to 115 fl oz' in the Amazon description (B0CP6JDR16, owner 2026-10-31)
@@ -64,6 +66,11 @@ QTY_BY_ASIN = {"B0098798ZY": 12,    # Tranquility Premium DayTime Pull-On Underw
                "B0C8TPWV3T": 14}    # MoliCare Slip Maxi 9 Drops, M
 # Owner-checked product names for listings whose title names only a size ('Attends XXL Briefs (XXL)'); the page
 # description says 'ATTENDS BRIEFS DERMADRY BARTRC - 4X12 XXL' (owner 2026-11-02)
+# Owner-checked capacities (mL) for single listings (owner 2026-11-02); Tranquility SlimLine differs by size
+CAP_BY_ASIN = {"B00K69K0HS": 657,   # Tranquility Premium ATN, S: 22.2 oz
+               "B07KKLYQ6K": 602,   # Tranquility SlimLine, M
+               "B00RXYV88E": 302,   # Tranquility SlimLine, Youth/Junior
+               "B002ZQ9RP6": 374}   # Tranquility SlimLine, S
 LINE_BY_ASIN = {"B00Y3AWZCE": "DermaDry Advance",              # product image (owner 2026-11-02)
                 "B0DBJ9ZD3L": "Overnight Bariatric Briefs"}    # product image (owner 2026-11-02)
 NOT_TRACKED = {"B0GRTJZR84", "B0GRT3VWJZ"}   # Landofgenie Women's Cartoon Print Underwear Potty Pants (reusable underwear)
@@ -118,6 +125,7 @@ def parse_results(raw):
         h2 = [html.unescape(re.sub(r"<[^>]+>", "", x)).strip() for x in re.findall(r"<h2[^>]*>(.*?)</h2>", b, re.S)]
         t = re.search(r'<h2[^>]*aria-label="([^"]+)"', b)
         title = html.unescape(t.group(1)) if t else (h2[-1] if h2 else "")
+        title = re.sub(r"^\s*sponsored\s+ad\s*[–—:-]\s*", "", title, flags=re.I)
         brand = h2[0] if len(h2) > 1 else ""
         pr = re.search(r'<span class="a-price"[^>]*><span class="a-offscreen">\$([\d,]+\.\d{2})<', b)
         img = re.search(r'<img class="s-image" src="([^"]+)"', b)
@@ -320,6 +328,7 @@ def page_size(raw):
 def to_row(it, brand, today):
     if it["asin"] in NOT_TRACKED:
         return None
+    it = dict(it, title=re.sub(r"^\s*sponsored\s+ad\s*[–—:-]\s*", "", it["title"], flags=re.I))
     title = re.sub(r"\bMd\b", "Medium", re.sub(r"\bLg\b", "Large", re.sub(r"\bSm\b", "Small", it["title"])))
     name = name_from_title(title)
     p = {"title": f"{brand} {name}", "handle": it["asin"], "vendor": brand, "product_type": "", "tags": [],
@@ -439,7 +448,8 @@ def main(out, prev):
 
     def known_cap(r):
         """Capacity from the title, another store or CAP_BY_SIZE: these come before reading the product page."""
-        if r.get("cap") or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or S.brand_site_caps(r["brand"]).get(r["pid"]):
+        if r.get("cap") or r["asin"] in CAP_BY_ASIN or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or CAP_BY_SIZE.get(r["pid"], {}).get("*") \
+                or S.brand_site_caps(r["brand"]).get(r["pid"]):
             return True
         return bool(by_pid.get(r["pid"]) and ((by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])))
 
@@ -601,7 +611,7 @@ def main(out, prev):
                 r["dims"] = other_dims(r)
         r["line"] = S.LINE_NAME.get(r["pid"], r["line"])
         S.abena_names([r])
-        sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])
+        sized = CAP_BY_ASIN.get(r["asin"]) or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or CAP_BY_SIZE.get(r["pid"], {}).get("*")
         if sized:
             r["cap"] = sized
         r["cap"] = r["cap"] or S.brand_site_caps(r["brand"]).get(r["pid"]) or (qcache.get(r["asin"]) or {}).get("cap")

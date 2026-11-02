@@ -82,6 +82,28 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:1
 input[type=search],select{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 9px;width:100%;min-width:0}
 input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+/* multi-select filters: a button that opens a checkbox list */
+.flab{font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px;line-height:16px;color:var(--muted)}
+.ms{position:relative;min-width:0}
+.ms summary{list-style:none;cursor:pointer;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 26px 7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.ms summary::-webkit-details-marker{display:none}
+.ms summary::after{content:"▾";position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.ms.on summary{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:600}
+.ms-pop{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:100%;width:max-content;max-width:min(320px,90vw);max-height:320px;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgb(0 0 0 / .18);padding:6px}
+.ms-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:2px 6px 6px;border-bottom:1px solid var(--line);margin-bottom:4px;font-size:12px;color:var(--muted)}
+.ms-head button{font:inherit;font-size:12px;font-weight:700;background:none;border:0;color:var(--accent);cursor:pointer;text-transform:uppercase;letter-spacing:.06em;padding:2px 0}
+.field .ms-pop label{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:4px;cursor:pointer;font-size:14px;line-height:18px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink)}
+.field .ms-pop label:hover{background:var(--row-hover)}
+.tabs a.tab-link{margin-left:auto}
+/* pop-up: rows and sizes switch to another listing */
+.cmp tbody tr{cursor:pointer}
+.cmp tbody tr:hover td{background:var(--row-hover)}
+.cmp tbody tr.me:hover td{background:var(--unit-bg)}
+.sizes{display:flex;flex-wrap:wrap;gap:6px}
+.sizes button{font:inherit;font-size:13px;font-weight:600;border:2px solid var(--border);background:var(--bg);color:var(--ink);border-radius:var(--radius-full);padding:2px 12px;cursor:pointer}
+.sizes button[aria-current=true]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.sizes button .muted{font-weight:400}
+.sizes button[aria-current=true] .muted{color:inherit;opacity:.85}
 .check{display:flex;gap:6px;align-items:center;font-size:14px;padding-bottom:8px;white-space:nowrap}
 .storebar{display:flex;flex-wrap:wrap;gap:6px;grid-column:1/-1}
 .storebar button{font:inherit;font-size:13px;font-weight:600;border:2px solid var(--border);background:var(--bg);color:var(--ink);border-radius:var(--radius-full);padding:3px 12px;cursor:pointer}
@@ -159,15 +181,16 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
     <a href="#diapers" data-cat="diaper">Diapers <span id="n-diaper"></span></a>
     <a href="#pullups" data-cat="pullup">Pull-ups <span id="n-pullup"></span></a>
     <a href="#boosters" data-cat="booster">Boosters <span id="n-booster"></span></a>
+    <a href="trends.html" class="tab-link">Trends ↗</a>
   </nav>
 
 
   <section class="filters" aria-label="Filters">
     <div class="field search"><label for="q">Search</label><input id="q" type="search" placeholder="Product, brand or store…" autocomplete="off"></div>
-    <div class="field"><label for="f-brand">Brand</label><select id="f-brand"><option value="">All brands</option></select></div>
-    <div class="field"><label for="f-size">Size</label><select id="f-size"><option value="">All sizes</option></select></div>
-    <div class="field"><label for="f-pkg">Package</label><select id="f-pkg"><option value="">All packages</option><option>Sample</option><option>Bag</option><option>Case</option></select></div>
-    <div class="field"><label for="f-var">Colour / scent</label><select id="f-var"><option value="">All variants</option></select></div>
+    <div class="field"><span class="flab" id="l-brand">Brand</span><details class="ms" id="f-brand" data-all="All brands" data-noun="brands"><summary aria-describedby="l-brand">All brands</summary><div class="ms-pop" role="group" aria-labelledby="l-brand"></div></details></div>
+    <div class="field"><span class="flab" id="l-size">Size</span><details class="ms" id="f-size" data-all="All sizes" data-noun="sizes"><summary aria-describedby="l-size">All sizes</summary><div class="ms-pop" role="group" aria-labelledby="l-size"></div></details></div>
+    <div class="field"><span class="flab" id="l-pkg">Package</span><details class="ms" id="f-pkg" data-all="All packages" data-noun="packages"><summary aria-describedby="l-pkg">All packages</summary><div class="ms-pop" role="group" aria-labelledby="l-pkg"></div></details></div>
+    <div class="field"><span class="flab" id="l-var">Colour / scent</span><details class="ms" id="f-var" data-all="All variants" data-noun="variants"><summary aria-describedby="l-var">All variants</summary><div class="ms-pop" role="group" aria-labelledby="l-var"></div></details></div>
     <div class="field"><label for="f-abs">Capacity</label><select id="f-abs"><option value="">Any</option></select></div>
     <div class="field"><label for="f-prov">Ship to</label><select id="f-prov"><option value="ON">Ontario</option><option value="QC">Quebec</option><option value="BC">British Columbia</option><option value="AB">Alberta</option><option value="MB">Manitoba</option><option value="SK">Saskatchewan</option><option value="NS">Nova Scotia</option><option value="NB">New Brunswick</option><option value="PE">Prince Edward Island</option><option value="NL">Newfoundland and Labrador</option></select></div>
     <label class="check" for="f-stock"><input id="f-stock" type="checkbox"> In stock only</label>
@@ -274,10 +297,26 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const titleCase = s => /[a-z]/.test(s) ? s : s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAm Pm\b/,"AM PM");
 
 // Each tab (diapers, pull-ups, boosters) keeps its own filters, store picks and sort; the ship-to province is shared.
-const BLANK = () => ({q:"", b:"", sz:"", p:"", a:"", vr:"", s:false, best:false, stores:[], sort:{k:"ppd", dir:"asc"}});
+const BLANK = () => ({q:"", b:[], sz:[], p:[], a:"", vr:[], s:false, best:false, stores:[], sort:{k:"ppd", dir:"asc"}});
+const arr = v => Array.isArray(v) ? v : (v ? [v] : []);   // filters saved before multi-select were single values
+// multi-select filters
+function msGet(id){ return [...$("#"+id).querySelectorAll(".ms-pop input:checked")].map(i => i.value); }
+function msLabel(id){
+  const d = $("#"+id), v = msGet(id);
+  d.querySelector("summary").textContent = !v.length ? d.dataset.all : v.length===1 ? v[0] : v.length + " " + d.dataset.noun;
+  d.classList.toggle("on", v.length > 0);
+  const n = d.querySelector(".ms-head span"); if(n) n.textContent = v.length ? v.length + " selected" : "Any";
+}
+function msFill(id, vals, sel){
+  const keep = new Set(arr(sel)), pop = $("#"+id+" .ms-pop");
+  pop.innerHTML = `<div class="ms-head"><span></span><button type="button" data-clear>Clear</button></div>` +
+    vals.map(v => `<label><input type="checkbox" value="${esc(v)}"${keep.has(v)?" checked":""}> ${esc(v)}</label>`).join("");
+  msLabel(id);
+}
+const MS = ["f-brand","f-size","f-pkg","f-var"];
 S.F = {diaper:BLANK(), pullup:BLANK(), booster:BLANK()};
 function readFilters(){   // the visible controls -> this tab's saved filters
-  S.F[S.cat] = {q:$("#q").value, b:$("#f-brand").value, sz:$("#f-size").value, p:$("#f-pkg").value, a:$("#f-abs").value, vr:$("#f-var").value,
+  S.F[S.cat] = {q:$("#q").value, b:msGet("f-brand"), sz:msGet("f-size"), p:msGet("f-pkg"), a:$("#f-abs").value, vr:msGet("f-var"),
                 s:$("#f-stock").checked, best:$("#f-best").checked, stores:[...S.stores], sort:S.sort};
 }
 function remember(){ readFilters(); try{ localStorage.setItem("dipaisle.f2", JSON.stringify({prov:$("#f-prov").value, tabs:S.F})); }catch(e){} }
@@ -285,7 +324,7 @@ function restore(){ try{
   const f = JSON.parse(localStorage.getItem("dipaisle.f2")||"null");
   if(f){ Object.keys(S.F).forEach(c => { if(f.tabs?.[c]) S.F[c] = {...BLANK(), ...f.tabs[c]}; }); if(f.prov) $("#f-prov").value=f.prov; return f; }
   const old = JSON.parse(localStorage.getItem("dipaisle.f")||"null");   // filters saved before tabs had their own
-  if(old){ S.F.diaper = {...BLANK(), q:old.q||"", b:old.b||"", sz:old.sz||"", p:old.p||"", s:!!old.s, best:!!old.best, stores:old.stores||[], sort:old.sort||BLANK().sort}; if(old.prov) $("#f-prov").value=old.prov; }
+  if(old){ S.F.diaper = {...BLANK(), q:old.q||"", b:arr(old.b), sz:arr(old.sz), p:arr(old.p), s:!!old.s, best:!!old.best, stores:old.stores||[], sort:old.sort||BLANK().sort}; if(old.prov) $("#f-prov").value=old.prov; }
   return old;
 }catch(e){ return null; } }
 const saved = restore();
@@ -317,12 +356,12 @@ function setCat(cat, keepFilters){
   $("#h-unit").textContent = "$/" + CATS[cat].one;
   $("#grid").classList.toggle("booster", cat==="booster");   // boosters: L and W columns instead of Size
   if(cat!=="booster" && (S.sort.k==="dl" || S.sort.k==="dw")) S.sort = {k:"ppd", dir:"asc"};
-  $("#q").value = F.q; $("#f-pkg").value = F.p; $("#f-stock").checked = F.s; $("#f-best").checked = F.best;
+  $("#q").value = F.q; $("#f-stock").checked = F.s; $("#f-best").checked = F.best;
   const rows = catRows();
-  const fill = (sel, vals, keep) => { const cur = keep ?? sel.value; sel.length = 1; vals.forEach(v => sel.add(new Option(v, v))); sel.value = vals.includes(cur) ? cur : ""; };
-  fill($("#f-brand"), [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), F.b);
-  fill($("#f-size"), [...new Set(rows.map(r => r.size))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b)), F.sz);
-  fill($("#f-var"), [...new Set(rows.map(r => r.variant).filter(Boolean))].sort(), F.vr);
+  msFill("f-brand", [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b)), F.b);
+  msFill("f-size", [...new Set(rows.map(r => r.size))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b)), F.sz);
+  msFill("f-pkg", ["Sample","Bag","Case"].filter(v => rows.some(r => r.pkg===v)), F.p);
+  msFill("f-var", [...new Set(rows.map(r => r.variant).filter(Boolean))].sort(), F.vr);
   const fa = $("#f-abs"); fa.length = 1; CAP_STEPS[cat].forEach(v => fa.add(new Option(v.toLocaleString()+" mL or more", v))); fa.add(new Option("Has a mL rating", 1));
   fa.value = [...fa.options].some(o => o.value === String(F.a)) ? String(F.a) : "";
   if(S.rows.length) firstFill = false;
@@ -339,9 +378,9 @@ function renderStores(){
 
 function filtered(){
   const q = $("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const b = $("#f-brand").value, sz = $("#f-size").value, p = $("#f-pkg").value, a = +$("#f-abs").value, vr = $("#f-var").value, stock = $("#f-stock").checked;
+  const [b, sz, p, vr] = MS.map(id => new Set(msGet(id))), a = +$("#f-abs").value, stock = $("#f-stock").checked;
   let list = catRows().filter(r =>
-    (!S.stores.size || S.stores.has(r.store)) && (!b || r.brand===b) && (!sz || r.size===sz) && (!p || r.pkg===p) && (!vr || r.variant===vr) &&
+    (!S.stores.size || S.stores.has(r.store)) && (!b.size || b.has(r.brand)) && (!sz.size || sz.has(r.size)) && (!p.size || p.has(r.pkg)) && (!vr.size || vr.has(r.variant)) &&
     (!a || (r.cap||0) >= a) && (!stock || r.avail) && q.every(w => r.hay.includes(w)));
   if($("#f-best").checked){   // keep the cheapest unit price per product + size among the matches
     const top = new Map();
@@ -428,17 +467,25 @@ async function openRow(id){
   const one = (CATS[r.cat]||CATS.diaper).one;
   const kv = [["Brand",r.brand],...(r.cat==="booster" ? [["Size (L × W)", r.dl!=null ? inch(r.dl)+" × "+inch(r.dw)+(r.size!=="One size"?" · "+r.size:"") : (r.size!=="One size"?r.size:"—")]] : [["Size", r.size]]),["Capacity",r.cap?r.cap.toLocaleString()+" mL":"—"],["Variant",r.variant||"—"],["This listing",`${r.store} · ${r.pkg}${r.qty?` of ${r.qty}`:""}`],["Price",money(r.price)],["$/"+one,unit(r.ppd)],["Delivered $/"+one+" ("+$("#f-prov").value+")", !r.qty ? "—" : r.dpd==null ? "—" : r.shipq ? unit(r.dpd)+" + shipping (set at checkout)" : unit(r.dpd)+(r.ship===0?" · free shipping":" · +"+money(r.ship)+" shipping")],["Delivered $/L",r.dpl==null?"—":money(r.dpl)+(r.shipq?" + shipping":"")],["Tracked since",r.first||"—"],...(r.checked ? [["Price checked", r.checked]] : []),["Stock",r.avail?"In stock":"Out of stock"]];
   const peers = (S.groups.get(r.ck)||[r]).slice().sort((a,b)=>(b.avail-a.avail)||((a.dpd??1e9)-(b.dpd??1e9)));
-  const cmpTable = `<div class="cmpbox"><table class="cmp"><thead><tr><th>Store</th><th>Variant</th><th>Package</th><th class="num">Price</th><th class="num">$/${one}</th><th class="num">Delivered</th><th>Stock</th><th></th></tr></thead><tbody>${peers.map(p=>`<tr class="${p.id===r.id?"me":""}"><td>${esc(p.store)}</td><td>${esc(p.variant||"—")}</td><td>${esc(p.pkg)}${p.qty?` of ${p.qty}`:""}</td><td class="num">${money(p.price)}</td><td class="num">${unit(p.ppd)}</td><td class="num">${p.dpd!=null ? unit(p.dpd) + (p.shipq ? shipTag(p) : "") : '<span class="muted">—</span>'}${p.lowest?' <span class="best">Lowest</span>':""}</td><td>${p.avail?"In stock":'<span class="badge oos">Out</span>'}</td><td><a class="go" href="${esc(p.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`).join("")}</tbody></table></div>`;
+  const cmpTable = `<div class="cmpbox"><table class="cmp"><thead><tr><th>Store</th><th>Variant</th><th>Package</th><th class="num">Price</th><th class="num">$/${one}</th><th class="num">Delivered</th><th>Stock</th><th></th></tr></thead><tbody>${peers.map(p=>`<tr class="${p.id===r.id?"me":""}" data-id="${esc(p.id)}" tabindex="0" title="${p.id===r.id?"This listing":"Show this listing"}"><td>${esc(p.store)}</td><td>${esc(p.variant||"—")}</td><td>${esc(p.pkg)}${p.qty?` of ${p.qty}`:""}</td><td class="num">${money(p.price)}</td><td class="num">${unit(p.ppd)}</td><td class="num">${p.dpd!=null ? unit(p.dpd) + (p.shipq ? shipTag(p) : "") : '<span class="muted">—</span>'}${p.lowest?' <span class="best">Lowest</span>':""}</td><td>${p.avail?"In stock":'<span class="badge oos">Out</span>'}</td><td><a class="go" href="${esc(p.url)}" target="_blank" rel="noopener">View ↗</a></td></tr>`).join("")}</tbody></table></div>`;
+  // the same product in its other sizes: the cheapest listing of each size (in stock first)
+  const sib = S.rows.filter(x => x.pid===r.pid && x.cat===r.cat);
+  const sizes = [...new Set(sib.map(x => x.size))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b));
+  const pick = sz => sib.filter(x => x.size===sz).sort((a,b)=>(b.avail-a.avail)||((a.ppd??1e9)-(b.ppd??1e9)))[0];
+  const sizeBar = sizes.length > 1 ? `<div><div class="field"><label>Sizes</label></div><div class="sizes">${sizes.map(sz => { const p = pick(sz);
+    return `<button type="button" data-id="${esc(p.id)}" aria-current="${sz===r.size}">${esc(sz)} <span class="muted">${unit(p.ppd)}</span></button>`; }).join("")}</div></div>` : "";
   body.innerHTML = `<button class="close" type="button" id="dlg-close">Close</button>
     <div style="display:flex;gap:12px;align-items:center">${S.thumbs[r.t]?`<img class="th" style="width:72px;height:72px" alt="" src="${S.thumbs[r.t]}">`:""}<div><div class="pbrand">${esc(r.brand)}</div><h2>${esc(r.dname)}</h2></div></div>
     <div class="kv">${kv.map(([k,v])=>`<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
+    ${sizeBar}
     <div><div class="field"><label>${r.size} at every store (${new Set(peers.map(p=>p.store)).size} ${new Set(peers.map(p=>p.store)).size===1?"store":"stores"}, all packages and variants)</label></div>${cmpTable}</div>
     <div><div class="field"><label>Price history</label></div><div id="hist" class="muted">Loading history…</div></div>
     ${SHIP.stores[r.store] ? `<p class="shipnote"><strong>${esc(r.store)} shipping:</strong> ${esc(SHIP.stores[r.store].summary)} <em>Source: ${esc(SHIP.stores[r.store].source)}${SHIP.stores[r.store].verified?" (checked at checkout)":""}, ${SHIP.checked}.</em></p>` : ""}
     <div class="report-actions"><a class="go" href="${esc(r.url)}" target="_blank" rel="noopener">Open product page ↗</a> <span class="muted">·</span> <a class="go" target="_blank" rel="noopener" href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=thediaperaisle@gmail.com&amp;su=${encodeURIComponent("Tracker correction: "+r.brand+" "+r.dname+" ("+r.size+", "+r.pkg+") at "+r.store)}">Report a problem in Gmail ↗</a></div>
     <p class="shipnote">Or email <strong style="user-select:all">thediaperaisle@gmail.com</strong> and tell us which listing is wrong.</p>`;
   $("#dlg-close").onclick = () => dlg.close();
-  dlg.showModal();
+  if(!dlg.open) dlg.showModal();
+  dlg.scrollTop = 0;
   try{
     if(!S.hist){ const docs = await loadSet("history", S.meta && S.meta.historyDocs); S.hist = {}; docs.forEach(d => Object.assign(S.hist, d.h||{})); }
     drawHist(S.hist[r.id] || []);
@@ -464,14 +511,25 @@ function drawHist(h){
 // events
 let t;
 $("#q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { S.limit=100; render(); remember(); }, 120); });
-["#f-brand","#f-size","#f-pkg","#f-abs","#f-var","#f-stock","#f-best"].forEach(s => $(s).addEventListener("change", () => { S.limit=100; render(); remember(); }));
+["#f-abs","#f-stock","#f-best"].forEach(s => $(s).addEventListener("change", () => { S.limit=100; render(); remember(); }));
+MS.forEach(id => {
+  const d = $("#"+id);
+  d.addEventListener("change", () => { msLabel(id); S.limit=100; render(); remember(); });
+  d.addEventListener("click", e => { if(!e.target.closest("[data-clear]")) return; d.querySelectorAll(".ms-pop input").forEach(i => i.checked = false); msLabel(id); S.limit=100; render(); remember(); });
+  d.addEventListener("toggle", () => { if(d.open) MS.forEach(o => { if(o !== id) $("#"+o).open = false; }); });
+});
+document.addEventListener("click", e => { MS.forEach(id => { const d = $("#"+id); if(d.open && !d.contains(e.target)) d.open = false; }); });
+document.addEventListener("keydown", e => { if(e.key === "Escape") MS.forEach(id => { const d = $("#"+id); if(d.open){ d.open = false; d.querySelector("summary").focus(); } }); });
 $("#f-prov").addEventListener("change", () => { applyShip(); markLowest(); render(); renderTags(); remember(); });
 $("#storebar").addEventListener("click", e => { const b = e.target.closest("button[data-store]"); if(!b) return; const n=b.dataset.store; S.stores.has(n)?S.stores.delete(n):S.stores.add(n); b.setAttribute("aria-pressed", S.stores.has(n)); S.limit=100; render(); remember(); });
 document.querySelector("thead").addEventListener("click", e => { const b = e.target.closest("button[data-k]"); if(!b) return; const k=b.dataset.k; S.sort = S.sort.k===k ? {k, dir:S.sort.dir==="asc"?"desc":"asc"} : {k, dir: ["name","brand","store","size","pkg","ppd","dpd","ppl","dpl","price","qty"].includes(k) ? "asc" : "desc"}; render(); remember(); });
 $("#more-btn").addEventListener("click", () => { S.limit += 100; render(); });
 $("#rows").addEventListener("click", e => { if(e.target.closest("a")) return; const tr = e.target.closest("tr[data-id]"); if(tr) openRow(tr.dataset.id); });
-$("#reset").addEventListener("click", () => { $("#q").value=""; ["#f-brand","#f-size","#f-pkg","#f-abs","#f-var"].forEach(s=>$(s).value=""); $("#f-stock").checked=false; $("#f-best").checked=false; S.stores.clear(); S.limit=100; renderStores(); render(); remember(); });
+$("#reset").addEventListener("click", () => { $("#q").value=""; $("#f-abs").value=""; document.querySelectorAll(".ms-pop input").forEach(i => i.checked = false); MS.forEach(msLabel); $("#f-stock").checked=false; $("#f-best").checked=false; S.stores.clear(); S.limit=100; renderStores(); render(); remember(); });
 $("#dlg").addEventListener("click", e => { if(e.target.id==="dlg") e.target.close(); });
+// inside the pop-up: a store row or a size button switches to that listing
+$("#dlg-body").addEventListener("click", e => { if(e.target.closest("a")) return; const t = e.target.closest("[data-id]"); if(t) openRow(t.dataset.id); });
+$("#dlg-body").addEventListener("keydown", e => { if(e.key !== "Enter") return; const t = e.target.closest("tr[data-id]"); if(t) openRow(t.dataset.id); });
 $("#report-copy").addEventListener("click", async e => {
   const b = e.currentTarget, addr = "thediaperaisle@gmail.com";
   try { await navigator.clipboard.writeText(addr); b.textContent = "Copied"; }

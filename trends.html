@@ -1,0 +1,392 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Diaper Price Trends</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700&display=swap">
+<style>
+/* The Diaper Aisle: trends page. Same tokens as the tracker (index.html); chart colours below are validated for
+   colour-blind separation against the page surfaces (white / aisle-ink). */
+:root{
+  --aisle-ink:#33254c; --shelf-purple:#7f749d; --aisle-blue:#5ea6db; --aisle-teal:#1f5f80; --aisle-navy:#14425c;
+  --cyan:#64c2e8; --sky:#b6d9f3; --mist:#cee3f0; --frost:#f2f5f8; --white:#ffffff;
+  --bg:var(--white); --surface:var(--frost); --ink:var(--aisle-ink); --muted:var(--aisle-teal); --accent:var(--aisle-teal); --on-accent:var(--white);
+  --border:var(--shelf-purple); --line:color-mix(in srgb,var(--shelf-purple) 30%,transparent); --focus:var(--aisle-teal);
+  --good:#298540; --bad:#c83c38; --row-hover:var(--frost);
+  --grid:#e6e3ee; --axis:#b9b3c9;
+  /* stores: categorical slots 1-6, fixed per store */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300;
+  /* price direction (diverging): down = blue, up = red */
+  --dec:#2a78d6; --inc:#e34948;
+  --f-sans:"Rubik",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --radius-sm:6px; --radius-md:16px; --radius-full:9999px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:var(--aisle-ink); --surface:var(--aisle-navy); --ink:var(--white); --muted:var(--mist); --accent:var(--aisle-blue); --on-accent:var(--aisle-ink);
+  --line:color-mix(in srgb,var(--shelf-purple) 45%,transparent); --focus:var(--cyan); --good:#7fc678; --bad:#f3a090;
+  --row-hover:color-mix(in srgb,var(--aisle-navy) 60%,var(--aisle-ink)); --grid:#43365e; --axis:#6a5e86;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --dec:#3987e5; --inc:#e66767; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:var(--aisle-ink); --surface:var(--aisle-navy); --ink:var(--white); --muted:var(--mist); --accent:var(--aisle-blue); --on-accent:var(--aisle-ink);
+  --line:color-mix(in srgb,var(--shelf-purple) 45%,transparent); --focus:var(--cyan); --good:#7fc678; --bad:#f3a090;
+  --row-hover:color-mix(in srgb,var(--aisle-navy) 60%,var(--aisle-ink)); --grid:#43365e; --axis:#6a5e86;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --dec:#3987e5; --inc:#e66767; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:14px;line-height:20px}
+.hero{background:var(--aisle-ink);color:var(--white);padding:16px 20px}
+.hero-in{max-width:1200px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:24px;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:16px;min-width:0}
+.brand img{width:96px;height:auto;display:block;flex:none}
+.hero h1{margin:0;font-size:36px;line-height:40px;font-weight:700;text-transform:uppercase;letter-spacing:-.01em}
+.hero h1 em{font-style:normal;color:var(--aisle-blue)}
+.hero p{margin:4px 0 0;color:var(--mist)}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--white);text-decoration:none;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;border:2px solid color-mix(in srgb,var(--white) 40%,transparent);border-radius:var(--radius-full);padding:8px 16px}
+.back:hover{border-color:var(--white)}
+.wrap{max-width:1200px;margin:0 auto;padding:16px 20px 48px;display:grid;gap:16px}
+/* filters: one row above everything they scope */
+.filters{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;background:var(--surface);border-radius:var(--radius-md);padding:12px 16px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.seg .lab{font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--muted);margin-right:4px}
+.seg button{font:inherit;font-size:13px;font-weight:600;border:2px solid var(--border);background:var(--bg);color:var(--ink);border-radius:var(--radius-full);padding:3px 14px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.filters .note{color:var(--muted);font-size:12px;margin-left:auto}
+button:focus-visible,a:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+/* stat tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.tile{background:var(--surface);border-radius:var(--radius-md);padding:14px 16px}
+.tile .k{font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--muted)}
+.tile .v{font-size:28px;line-height:34px;font-weight:700;margin-top:4px}
+.tile .s{font-size:13px;color:var(--muted)}
+.up{color:var(--bad)} .down{color:var(--good)}
+/* chart cards */
+.card{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px;min-width:0}
+.card h2{margin:0;font-size:18px;line-height:24px;font-weight:700}
+.card .sub{margin:2px 0 10px;color:var(--muted);font-size:13px;max-width:80ch}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
+.chart{position:relative}
+.chart svg{display:block;max-width:100%;height:auto;overflow:visible}
+.chart svg text{fill:var(--muted);font-family:var(--f-sans);font-size:11px}
+.chart svg text.lbl{fill:var(--ink);font-size:12px;font-weight:600}
+.chart svg text.val{fill:var(--ink);font-size:11px;font-variant-numeric:tabular-nums}
+.gridl{stroke:var(--grid);stroke-width:1}
+.axisl{stroke:var(--axis);stroke-width:1}
+.hit{fill:transparent;cursor:default}
+.hit:hover + .mark,.hit:focus + .mark{opacity:.75}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0 8px;font-size:13px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px}
+.legend i.box{height:10px;width:10px;border-radius:2px}
+.tip{position:absolute;pointer-events:none;z-index:5;background:var(--bg);color:var(--ink);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgb(0 0 0 / .18);padding:8px 10px;font-size:12px;line-height:16px;min-width:150px;display:none}
+.tip .h{color:var(--muted);margin-bottom:4px}
+.tip .r{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.tip .r b{font-variant-numeric:tabular-nums}
+.tip .r span{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.tip .r i{width:12px;height:3px;border-radius:2px;display:inline-block}
+details.tv{margin-top:8px}
+details.tv summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:11px;color:var(--muted);border-bottom:2px solid var(--border);padding:6px}
+td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbox{overflow-x:auto}
+a.go{color:var(--accent);text-decoration:none;font-weight:600}
+a.go:hover{text-decoration:underline}
+.muted{color:var(--muted)}
+.flag{font-size:11px;color:var(--muted)}
+.empty{color:var(--muted);padding:24px 0;text-align:center}
+footer{color:var(--muted);font-size:12px;line-height:18px}
+@media (max-width:640px){.hero h1{font-size:26px;line-height:30px}.brand img{width:72px}.filters .note{margin-left:0}}
+</style></head><body>
+<header class="hero"><div class="hero-in">
+  <div class="brand"><img src="assets/tda-logo.webp" alt="The Diaper Aisle" width="96" height="92">
+    <div><h1>Market <em>Trends</em></h1><p id="asof">Loading price history…</p></div></div>
+  <a class="back" href="index.html">← Price tracker</a>
+</div></header>
+
+<div class="wrap">
+  <section class="filters" aria-label="Filters">
+    <div class="seg" id="f-cat" role="group" aria-label="Category"><span class="lab">Show</span>
+      <button type="button" data-v="diaper" aria-pressed="true">Diapers</button><button type="button" data-v="pullup" aria-pressed="false">Pull-ups</button><button type="button" data-v="booster" aria-pressed="false">Boosters</button></div>
+    <div class="seg" id="f-per" role="group" aria-label="Period"><span class="lab">Period</span>
+      <button type="button" data-v="7" aria-pressed="false">Last 7 days</button><button type="button" data-v="30" aria-pressed="true">Last 30 days</button><button type="button" data-v="0" aria-pressed="false">All time</button></div>
+    <span class="note">Shelf prices before shipping and tax; sample packs left out.</span>
+  </section>
+
+  <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+  <section class="card">
+    <h2>Price index by store</h2>
+    <p class="sub">Every listing's price at the start of the period = 100, averaged per store. Below 100 means that store's prices went down overall.</p>
+    <div class="legend" id="lg-index"></div>
+    <div class="chart" id="ch-index"></div>
+    <details class="tv"><summary>Show as table</summary><div class="tbox" id="tb-index"></div></details>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Average price change by brand</h2>
+      <p class="sub">Average change in listing price over the period, brands with at least 5 listings.</p>
+      <div class="legend"><span><i class="box" style="background:var(--dec)"></i>Cheaper</span><span><i class="box" style="background:var(--inc)"></i>Pricier</span><span><i class="box" style="background:var(--axis)"></i>No change</span></div>
+      <div class="chart" id="ch-brand"></div>
+      <details class="tv"><summary>Show as table</summary><div class="tbox" id="tb-brand"></div></details>
+    </section>
+    <section class="card">
+      <h2>Typical price per <span class="one">diaper</span> by store</h2>
+      <p class="sub">Median price per piece today, in-stock bags and cases.</p>
+      <div class="chart" id="ch-store"></div>
+      <details class="tv"><summary>Show as table</summary><div class="tbox" id="tb-store"></div></details>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Price changes per day</h2>
+    <p class="sub">How many listings changed price each day: increases above the line, decreases below.</p>
+    <div class="legend"><span><i class="box" style="background:var(--inc)"></i>Increases</span><span><i class="box" style="background:var(--dec)"></i>Decreases</span></div>
+    <div class="chart" id="ch-days"></div>
+    <details class="tv"><summary>Show as table</summary><div class="tbox" id="tb-days"></div></details>
+  </section>
+
+  <div class="grid2">
+    <section class="card"><h2>Biggest price drops</h2><p class="sub">Largest decreases over the period.</p><div class="tbox" id="tb-drops"></div></section>
+    <section class="card"><h2>Biggest price increases</h2><p class="sub">Largest increases over the period.</p><div class="tbox" id="tb-ups"></div></section>
+  </div>
+
+  <footer>Prices come from the daily tracker run; a listing's price is carried forward on days it did not change. A move of 50% or more is marked "check": it is more often a corrected listing than a real price change. Index and brand averages use only listings tracked since the start of the period.</footer>
+</div>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const STORES = ["Healthwick","ABUniverse","MyDips","AgeComfort","Rearz","Amazon"];   // fixed colour slots 1-6
+const scol = s => `var(--s${STORES.indexOf(s)+1})`;
+const ONE = {diaper:"diaper", pullup:"pull-up", booster:"booster"};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = v => v==null ? "—" : "$" + v.toFixed(2);
+const unit = v => v==null ? "—" : "$" + v.toFixed(v < 1 ? 3 : 2);
+const pct = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(1) + "%";
+const D = {rows:[], hist:{}, end:null, first:null};
+const F = {cat: "diaper", days: 30};
+try{ const f = JSON.parse(localStorage.getItem("dipaisle.trends")||"null"); if(f){ F.cat = f.cat || F.cat; F.days = f.days ?? F.days; } }catch(e){}
+
+const addDays = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n*864e5).toISOString().slice(0,10);
+function priceAt(r, d){   // shelf price on date d (history is a step function; points only when the price changes)
+  const h = D.hist[r.id];
+  if(!h || !h.length) return (r.first || "") <= d ? r.price : null;
+  let p = null;
+  for(const x of h){ if(x[0] <= d) p = x[1]; else break; }
+  return p;
+}
+const median = a => { if(!a.length) return null; const s = [...a].sort((x,y)=>x-y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; };
+
+// ---------- tooltip (values lead, labels follow; text set with textContent) ----------
+const tip = $("#tip");
+function showTip(host, x, y, head, items){
+  tip.replaceChildren();
+  const h = document.createElement("div"); h.className = "h"; h.textContent = head; tip.append(h);
+  items.forEach(([label, value, color]) => {
+    const r = document.createElement("div"); r.className = "r";
+    const l = document.createElement("span"); if(color){ const i = document.createElement("i"); i.style.background = color; l.append(i); }
+    l.append(document.createTextNode(label));
+    const b = document.createElement("b"); b.textContent = value; r.append(b, l); tip.append(r);
+  });
+  const hr = host.getBoundingClientRect();
+  tip.style.display = "block";
+  const w = tip.offsetWidth, hh = tip.offsetHeight;
+  let left = hr.left + window.scrollX + x + 14; if(left + w > window.scrollX + document.documentElement.clientWidth - 8) left = hr.left + window.scrollX + x - w - 14;
+  tip.style.left = Math.max(8, left) + "px"; tip.style.top = (hr.top + window.scrollY + Math.max(0, y - hh/2)) + "px";
+}
+const hideTip = () => { tip.style.display = "none"; };
+
+// ---------- the slice every chart uses ----------
+function slice(){
+  const end = D.end, start = F.days ? (addDays(end, -F.days) < D.first ? D.first : addDays(end, -F.days)) : D.first;
+  const rows = D.rows.filter(r => r.cat === F.cat && r.qty > 0 && r.pkg !== "Sample" && r.price > 0);
+  const dates = []; for(let d = start; d <= end; d = addDays(d, 1)) dates.push(d);
+  const base = rows.map(r => ({r, p0: priceAt(r, start), p1: priceAt(r, end)})).filter(x => x.p0 && x.p1);
+  return {start, end, rows, dates, base};
+}
+
+function render(){
+  document.querySelectorAll(".one").forEach(e => e.textContent = ONE[F.cat]);
+  document.querySelectorAll("#f-cat button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === F.cat));
+  document.querySelectorAll("#f-per button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.v === F.days));
+  try{ localStorage.setItem("dipaisle.trends", JSON.stringify(F)); }catch(e){}
+  const X = slice();
+  $("#asof").textContent = `${X.start} to ${X.end} · ${X.base.length.toLocaleString()} listings tracked through the period`;
+  tiles(X); indexChart(X); brandChart(X); storeChart(X); daysChart(X); movers(X);
+}
+
+// ---------- stat tiles ----------
+function tiles(X){
+  const one = ONE[F.cat];
+  const live = X.rows.filter(r => r.avail);
+  const now = median(live.map(r => r.price / r.qty));
+  const m0 = median(X.base.map(x => x.p0 / x.r.qty)), m1 = median(X.base.map(x => x.p1 / x.r.qty));
+  const avg = X.base.length ? X.base.reduce((a, x) => a + (x.p1 / x.p0 - 1), 0) / X.base.length * 100 : 0;
+  let up = 0, dn = 0;
+  X.rows.forEach(r => { const h = D.hist[r.id] || []; for(let i = 1; i < h.length; i++){ if(h[i][0] > X.start && h[i][0] <= X.end && h[i][1] !== h[i-1][1]) h[i][1] > h[i-1][1] ? up++ : dn++; } });
+  const moved = X.base.filter(x => x.p1 !== x.p0).length;
+  const t = [
+    [`Median price per ${one}`, unit(now), `${live.length.toLocaleString()} in-stock listings`],
+    ["Average price change", `<span class="${avg > 0 ? "up" : avg < 0 ? "down" : ""}">${pct(avg)}</span>`, `median per ${one} ${unit(m0)} → ${unit(m1)}`],
+    ["Price changes", (up + dn).toLocaleString(), `<span class="up">▲ ${up} up</span> · <span class="down">▼ ${dn} down</span>`],
+    ["Listings that moved", moved.toLocaleString(), `of ${X.base.length.toLocaleString()} tracked through the period`],
+  ];
+  $("#tiles").innerHTML = t.map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+}
+
+// ---------- line chart: price index by store ----------
+function indexChart(X){
+  const host = $("#ch-index");
+  const series = STORES.map(s => {
+    const b = X.base.filter(x => x.r.store === s);
+    if(!b.length) return null;
+    const pts = X.dates.map(d => { let sum = 0, n = 0; b.forEach(x => { const p = priceAt(x.r, d); if(p){ sum += p / x.p0; n++; } }); return n ? sum / n * 100 : null; });
+    return {s, n: b.length, pts};
+  }).filter(Boolean);
+  $("#lg-index").innerHTML = series.map(x => `<span><i style="background:${scol(x.s)}"></i>${esc(x.s)} <span class="muted">(${x.n})</span></span>`).join("");
+  if(!series.length || X.dates.length < 2){ host.innerHTML = '<p class="empty">Not enough history for this period yet.</p>'; $("#tb-index").innerHTML = ""; return; }
+  const W = Math.max(300, host.clientWidth || 900), H = W < 600 ? 240 : 300, L = 40, R = W < 600 ? 104 : 120, T = 12, B = 28;
+  const vals = series.flatMap(x => x.pts).filter(v => v != null);
+  let lo = Math.min(100, ...vals), hi = Math.max(100, ...vals); const pad = Math.max(0.5, (hi - lo) * 0.12); lo -= pad; hi += pad;
+  const xs = i => L + i / (X.dates.length - 1) * (W - L - R), ys = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const step = (hi - lo) > 12 ? 5 : (hi - lo) > 5 ? 2 : (hi - lo) > 2 ? 1 : 0.5;
+  let grid = ""; for(let v = Math.ceil(lo / step) * step; v <= hi; v += step){ grid += `<line class="${Math.abs(v - 100) < 1e-9 ? "axisl" : "gridl"}" x1="${L}" x2="${W - R}" y1="${ys(v).toFixed(1)}" y2="${ys(v).toFixed(1)}"/><text x="${L - 6}" y="${(ys(v) + 4).toFixed(1)}" text-anchor="end">${+v.toFixed(1)}</text>`; }
+  const nt = Math.min(W < 600 ? 3 : 6, X.dates.length); let xt = "";
+  for(let k = 0; k < nt; k++){ const i = Math.round(k * (X.dates.length - 1) / (nt - 1)); xt += `<text x="${xs(i).toFixed(1)}" y="${H - 8}" text-anchor="${k === 0 ? "start" : k === nt - 1 ? "end" : "middle"}">${X.dates[i].slice(5)}</text>`; }
+  const paths = series.map(x => { let d = ""; x.pts.forEach((v, i) => { if(v == null) return; d += (d ? "L" : "M") + xs(i).toFixed(1) + " " + ys(v).toFixed(1); }); return `<path d="${d}" fill="none" stroke="${scol(x.s)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`; }).join("");
+  // direct labels at the line ends, nudged apart so they never overlap
+  const ends = series.map(x => ({s: x.s, v: x.pts[x.pts.length - 1], y: ys(x.pts[x.pts.length - 1])})).sort((a, b) => a.y - b.y);
+  for(let i = 1; i < ends.length; i++) if(ends[i].y - ends[i-1].y < 14) ends[i].y = ends[i-1].y + 14;
+  const labels = ends.map(e => `<circle cx="${xs(X.dates.length - 1)}" cy="${ys(e.v).toFixed(1)}" r="4" fill="${scol(e.s)}" stroke="var(--bg)" stroke-width="2"/><text class="lbl" x="${W - R + 10}" y="${(e.y + 4).toFixed(1)}">${esc(e.s)} <tspan class="val">${e.v.toFixed(1)}</tspan></text>`).join("");
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Price index by store, ${X.start} to ${X.end}">${grid}${xt}${paths}${labels}
+    <line id="xh" class="axisl" x1="0" x2="0" y1="${T}" y2="${H - B}" visibility="hidden"/>
+    <rect class="hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" tabindex="0" aria-label="Move across the chart for each day's values"/></svg>`;
+  const svg = host.querySelector("svg"), hit = host.querySelector(".hit"), xh = host.querySelector("#xh");
+  const at = i => { xh.setAttribute("x1", xs(i)); xh.setAttribute("x2", xs(i)); xh.setAttribute("visibility", "visible");
+    const r = svg.getBoundingClientRect(), k = r.width / W;
+    showTip(host, xs(i) * k, ys(100) * k, X.dates[i], series.map(x => [x.s, x.pts[i] == null ? "—" : x.pts[i].toFixed(1), scol(x.s)]).sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]))); };
+  let cur = X.dates.length - 1;
+  hit.addEventListener("pointermove", e => { const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W; cur = Math.max(0, Math.min(X.dates.length - 1, Math.round((x - L) / (W - L - R) * (X.dates.length - 1)))); at(cur); });
+  hit.addEventListener("pointerleave", () => { xh.setAttribute("visibility", "hidden"); hideTip(); });
+  hit.addEventListener("focus", () => at(cur)); hit.addEventListener("blur", () => { xh.setAttribute("visibility", "hidden"); hideTip(); });
+  hit.addEventListener("keydown", e => { if(e.key === "ArrowLeft"){ cur = Math.max(0, cur - 1); at(cur); } if(e.key === "ArrowRight"){ cur = Math.min(X.dates.length - 1, cur + 1); at(cur); } });
+  $("#tb-index").innerHTML = `<table><thead><tr><th>Date</th>${series.map(x => `<th class="num">${esc(x.s)}</th>`).join("")}</tr></thead><tbody>${X.dates.map((d, i) => `<tr><td>${d}</td>${series.map(x => `<td class="num">${x.pts[i] == null ? "—" : x.pts[i].toFixed(1)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+// ---------- horizontal bars (shared by the brand and store charts) ----------
+function hbars(host, items, opt){
+  // items: [{label, value, color, tip:[[k,v]...]}]; opt: {diverging, fmt}
+  if(!items.length){ host.innerHTML = '<p class="empty">Nothing to show for this period yet.</p>'; return; }
+  const row = 26, W = Math.max(300, host.clientWidth || 520), L = W < 420 ? 100 : 128, R = 64, T = 4, H = T + items.length * row + 22;
+  const vals = items.map(x => x.value);
+  let lo = opt.diverging ? Math.min(0, ...vals) : 0, hi = Math.max(0, ...vals);
+  if(opt.diverging){ const m = Math.max(Math.abs(lo), Math.abs(hi), 0.5); lo = -m; hi = m; } else hi = hi || 1;
+  const xs = v => L + (v - lo) / (hi - lo) * (W - L - R), x0 = xs(0);
+  let g = "";
+  const ticks = opt.diverging ? [lo, lo / 2, 0, hi / 2, hi] : [0, hi / 2, hi];
+  ticks.forEach(v => { g += `<line class="${v === 0 ? "axisl" : "gridl"}" x1="${xs(v).toFixed(1)}" x2="${xs(v).toFixed(1)}" y1="${T}" y2="${H - 20}"/><text x="${xs(v).toFixed(1)}" y="${H - 6}" text-anchor="middle">${opt.tick(v)}</text>`; });
+  const bars = items.map((x, i) => {
+    const y = T + i * row + 4, h = row - 8, a = Math.min(xs(x.value), x0), w = Math.max(1.5, Math.abs(xs(x.value) - x0));
+    const vx = x.value < 0 ? a - 6 : a + w + 6;
+    return `<g><text class="lbl" x="${L - 8}" y="${y + h / 2 + 4}" text-anchor="end">${esc(x.label.length > 18 ? x.label.slice(0, 17) + "…" : x.label)}</text>
+      <rect class="hit" data-i="${i}" x="0" y="${y - 3}" width="${W}" height="${row}" tabindex="0"/>
+      <rect class="mark" x="${a.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h}" rx="4" fill="${x.color}"/>
+      <text class="val" x="${vx.toFixed(1)}" y="${y + h / 2 + 4}" text-anchor="${x.value < 0 ? "end" : "start"}">${opt.fmt(x.value)}</text></g>`;
+  }).join("");
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(opt.aria)}">${g}${bars}</svg>`;
+  const svg = host.querySelector("svg");
+  host.querySelectorAll(".hit").forEach(el => {
+    const show = () => { const x = items[+el.dataset.i], r = svg.getBoundingClientRect(), k = r.width / W; showTip(host, xs(x.value) * k, (+el.getAttribute("y") + row / 2) * k, x.label, x.tip); };
+    el.addEventListener("pointermove", show); el.addEventListener("focus", show);
+    el.addEventListener("pointerleave", hideTip); el.addEventListener("blur", hideTip);
+  });
+}
+
+function brandChart(X){
+  const by = {};
+  X.base.forEach(x => { (by[x.r.brand] ||= []).push(x.p1 / x.p0 - 1); });
+  const items = Object.entries(by).filter(([, v]) => v.length >= 5).map(([b, v]) => {
+    const m = v.reduce((a, c) => a + c, 0) / v.length * 100, moved = v.filter(c => c !== 0).length;
+    return {label: b, value: m, n: v.length, moved, color: Math.abs(m) < 0.05 ? "var(--axis)" : m < 0 ? "var(--dec)" : "var(--inc)", tip: [["Average change", pct(m)], ["Listings", String(v.length)], ["Changed price", String(moved)]]};
+  }).sort((a, b) => a.value - b.value);
+  hbars($("#ch-brand"), items, {diverging: true, fmt: pct, tick: v => (v > 0 ? "+" : "") + +v.toFixed(1) + "%", aria: "Average price change by brand"});
+  $("#tb-brand").innerHTML = `<table><thead><tr><th>Brand</th><th class="num">Average change</th><th class="num">Listings</th><th class="num">Changed price</th></tr></thead><tbody>${items.map(x => `<tr><td>${esc(x.label)}</td><td class="num">${pct(x.value)}</td><td class="num">${x.n}</td><td class="num">${x.moved}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function storeChart(X){
+  const one = ONE[F.cat];
+  const items = STORES.map(s => {
+    const v = X.rows.filter(r => r.store === s && r.avail).map(r => r.price / r.qty);
+    if(!v.length) return null;
+    const m = median(v);
+    return {label: s, value: m, n: v.length, color: scol(s), tip: [[`Median per ${one}`, unit(m)], ["In-stock listings", String(v.length)], ["Lowest", unit(Math.min(...v))], ["Highest", unit(Math.max(...v))]]};
+  }).filter(Boolean).sort((a, b) => a.value - b.value);
+  hbars($("#ch-store"), items, {diverging: false, fmt: unit, tick: v => "$" + v.toFixed(2), aria: `Median price per ${one} by store`});
+  $("#tb-store").innerHTML = `<table><thead><tr><th>Store</th><th class="num">Median per ${one}</th><th class="num">In-stock listings</th></tr></thead><tbody>${items.map(x => `<tr><td>${esc(x.label)}</td><td class="num">${unit(x.value)}</td><td class="num">${x.n}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// ---------- columns: price changes per day (increases up, decreases down) ----------
+function daysChart(X){
+  const host = $("#ch-days");
+  const days = X.dates.slice(1).map(d => ({d, up: 0, dn: 0}));
+  const idx = Object.fromEntries(days.map((x, i) => [x.d, i]));
+  X.rows.forEach(r => { const h = D.hist[r.id] || []; for(let i = 1; i < h.length; i++){ const k = idx[h[i][0]]; if(k != null && h[i][1] !== h[i-1][1]) h[i][1] > h[i-1][1] ? days[k].up++ : days[k].dn++; } });
+  if(!days.length){ host.innerHTML = '<p class="empty">Not enough history for this period yet.</p>'; $("#tb-days").innerHTML = ""; return; }
+  const W = Math.max(300, host.clientWidth || 900), H = 240, L = 40, R = 10, T = 10, B = 26;
+  const m = Math.max(1, ...days.map(x => Math.max(x.up, x.dn)));
+  const y0 = T + (H - T - B) / 2, ys = v => (H - T - B) / 2 * v / m;
+  const bw = (W - L - R) / days.length, gap = Math.min(4, bw * 0.2);
+  let g = `<line class="axisl" x1="${L}" x2="${W - R}" y1="${y0}" y2="${y0}"/><text x="${L - 6}" y="${y0 + 4}" text-anchor="end">0</text>
+    <line class="gridl" x1="${L}" x2="${W - R}" y1="${y0 - ys(m)}" y2="${y0 - ys(m)}"/><text x="${L - 6}" y="${y0 - ys(m) + 4}" text-anchor="end">${m}</text>
+    <line class="gridl" x1="${L}" x2="${W - R}" y1="${y0 + ys(m)}" y2="${y0 + ys(m)}"/><text x="${L - 6}" y="${y0 + ys(m) + 4}" text-anchor="end">${m}</text>`;
+  const nt = Math.min(W < 600 ? 3 : 6, days.length);
+  for(let k = 0; k < nt; k++){ const i = nt === 1 ? 0 : Math.round(k * (days.length - 1) / (nt - 1)); g += `<text x="${(L + i * bw + bw / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${days[i].d.slice(5)}</text>`; }
+  const bars = days.map((x, i) => { const bx = L + i * bw + gap / 2, w = Math.max(1, bw - gap);
+    return `<rect class="hit" data-i="${i}" x="${(L + i * bw).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H - T - B}" tabindex="0"/>
+      <g class="mark">${x.up ? `<rect x="${bx.toFixed(1)}" y="${(y0 - ys(x.up) - 1).toFixed(1)}" width="${w.toFixed(1)}" height="${ys(x.up).toFixed(1)}" rx="${Math.min(4, w / 2)}" fill="var(--inc)"/>` : ""}${x.dn ? `<rect x="${bx.toFixed(1)}" y="${(y0 + 1).toFixed(1)}" width="${w.toFixed(1)}" height="${ys(x.dn).toFixed(1)}" rx="${Math.min(4, w / 2)}" fill="var(--dec)"/>` : ""}</g>`; }).join("");
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Price changes per day">${g}${bars}</svg>`;
+  const svg = host.querySelector("svg");
+  host.querySelectorAll(".hit").forEach(el => {
+    const show = () => { const x = days[+el.dataset.i], r = svg.getBoundingClientRect(), k = r.width / W; showTip(host, (L + (+el.dataset.i + 0.5) * bw) * k, y0 * k, x.d, [["Increases", String(x.up), "var(--inc)"], ["Decreases", String(x.dn), "var(--dec)"]]); };
+    el.addEventListener("pointermove", show); el.addEventListener("focus", show);
+    el.addEventListener("pointerleave", hideTip); el.addEventListener("blur", hideTip);
+  });
+  $("#tb-days").innerHTML = `<table><thead><tr><th>Date</th><th class="num">Increases</th><th class="num">Decreases</th></tr></thead><tbody>${days.filter(x => x.up || x.dn).map(x => `<tr><td>${x.d}</td><td class="num">${x.up}</td><td class="num">${x.dn}</td></tr>`).join("") || '<tr><td colspan="3" class="muted">No price changes in this period.</td></tr>'}</tbody></table>`;
+}
+
+// ---------- biggest movers ----------
+const pname = r => { const n = r.line || r.name; return n.toLowerCase().startsWith((r.brand || "").toLowerCase()) ? n : `${r.brand} ${n}`; };
+function movers(X){
+  const one = ONE[F.cat];
+  const m = X.base.filter(x => x.p1 !== x.p0).map(x => ({...x, c: (x.p1 / x.p0 - 1) * 100}));
+  const table = list => list.length ? `<table><thead><tr><th>Product</th><th class="num">Price</th><th class="num">Change</th></tr></thead><tbody>${list.map(x => `<tr>
+      <td><a class="go" href="${esc(x.r.url)}" target="_blank" rel="noopener">${esc(pname(x.r))}</a><div class="muted">${esc(x.r.store)} · ${esc(x.r.size)} · ${esc(x.r.pkg)} of ${x.r.qty}${x.r.variant ? " · " + esc(x.r.variant) : ""}</div></td>
+      <td class="num">${money(x.p0)} → ${money(x.p1)}<div class="muted">${unit(x.p1 / x.r.qty)}/${one}</div></td>
+      <td class="num"><b class="${x.c > 0 ? "up" : "down"}">${pct(x.c)}</b>${Math.abs(x.c) >= 50 ? '<div class="flag">check</div>' : ""}</td></tr>`).join("")}</tbody></table>` : '<p class="empty">No price changes in this period.</p>';
+  $("#tb-drops").innerHTML = table(m.filter(x => x.c < 0).sort((a, b) => a.c - b.c).slice(0, 10));
+  $("#tb-ups").innerHTML = table(m.filter(x => x.c > 0).sort((a, b) => b.c - a.c).slice(0, 10));
+}
+
+// ---------- filters ----------
+let rz, lastW = 0; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if(D.end && Math.abs(innerWidth - lastW) > 20){ lastW = innerWidth; render(); } }, 150); });
+$("#f-cat").addEventListener("click", e => { const b = e.target.closest("button[data-v]"); if(!b) return; F.cat = b.dataset.v; render(); });
+$("#f-per").addEventListener("click", e => { const b = e.target.closest("button[data-v]"); if(!b) return; F.days = +b.dataset.v; render(); });
+
+// ---------- data: the tracker's published files ----------
+const V = "?v=" + Math.floor(Date.now() / 3.6e6);
+async function getJSON(p){ const r = await fetch("data/" + p + V); if(!r.ok) throw new Error(p + " " + r.status); return r.json(); }
+async function loadSet(name, n){ return Promise.all([...Array(n || 0).keys()].map(i => getJSON(name + "-" + i + ".json"))); }
+(async () => {
+  try{
+    const meta = await getJSON("meta.json");
+    const [cats, hists] = await Promise.all([loadSet("catalog", meta.catalogDocs), loadSet("history", meta.historyDocs)]);
+    cats.forEach(d => (d.rows || []).forEach(r => D.rows.push(r)));
+    hists.forEach(d => Object.assign(D.hist, d.h || {}));
+    Object.values(D.hist).forEach(h => h.sort((a, b) => a[0] < b[0] ? -1 : 1));
+    let first = meta.date; Object.values(D.hist).forEach(h => { if(h.length && h[0][0] < first) first = h[0][0]; });
+    D.end = meta.date; D.first = first;
+    render();
+  }catch(e){ $("#asof").textContent = "Price history could not be loaded. Reload to retry."; }
+})();
+</script>
+</body></html>

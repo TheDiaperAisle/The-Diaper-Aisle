@@ -257,7 +257,7 @@ def page_text(raw):
 
 def page_cap(raw, size, cat):
     """Capacity (mL) the product page states for this listing, or None. A figure for its size beats a whole-product one."""
-    lo, hi = (100, 5000) if cat == "booster" else (1000, 20000)
+    lo, hi = (100, 5000) if cat == "booster" else (S.CAP_MIN, 20000)
     t = page_text(raw)
     if not t:
         return None
@@ -333,6 +333,10 @@ def to_row(it, brand, today):
     name = name_from_title(title)
     p = {"title": f"{brand} {name}", "handle": it["asin"], "vendor": brand, "product_type": "", "tags": [],
          "options": [], "variants": []}
+    pn0 = print_name(title)[0] if brand in AB_BRANDS else None
+    if pn0 and pn0.lower() in title.lower():
+        # the print name after the piece count ('- Potty Pants') says nothing about the product type
+        p = dict(p, title=f"{brand} {name_from_title(title[:title.lower().rfind(pn0.lower())].rstrip(' -–'))}")
     cat = S.category("Amazon", p)
     if not cat:
         # many Amazon titles leave out the product type before the first comma; look at the whole title
@@ -371,7 +375,7 @@ def to_row(it, brand, today):
     size = amazon_size(title)
     qty, _ = amazon_qty(title)
     pkg = amazon_pkg(title, qty)
-    lo_hi = (100, 5000) if cat == "booster" else (1000, 20000)
+    lo_hi = (100, 5000) if cat == "booster" else (S.CAP_MIN, 20000)
     cap = S.capacity_ml(title, *lo_hi)
     # booster pad dimensions, same form as the other stores: 'Mini 10.5" x 2.75"' -> '10.5" x 2.75"'
     dims = S.dims_of(title) if cat == "booster" and size == "One size" else None
@@ -448,7 +452,7 @@ def main(out, prev):
 
     def known_cap(r):
         """Capacity from the title, another store or CAP_BY_SIZE: these come before reading the product page."""
-        if r.get("cap") or r["asin"] in CAP_BY_ASIN or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or CAP_BY_SIZE.get(r["pid"], {}).get("*") \
+        if r.get("cap") or r["asin"] in CAP_BY_ASIN or S.CAP_MANUAL.get(r["pid"]) or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or CAP_BY_SIZE.get(r["pid"], {}).get("*") \
                 or S.brand_site_caps(r["brand"]).get(r["pid"]):
             return True
         return bool(by_pid.get(r["pid"]) and ((by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])))
@@ -483,9 +487,8 @@ def main(out, prev):
             nr = to_row(it, r["brand"], r.get("checked"))
             if nr is None:
                 return None   # now excluded (e.g. reusable cloth diapers, owner 2026-11-01)
-            if nr["cat"] == r["cat"]:
-                nr.pop("img", None)
-                return nr
+            nr.pop("img", None)
+            return nr
         return r
 
     # how many searches today: an even share of this month's remaining budget
@@ -614,7 +617,7 @@ def main(out, prev):
         sized = CAP_BY_ASIN.get(r["asin"]) or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or CAP_BY_SIZE.get(r["pid"], {}).get("*")
         if sized:
             r["cap"] = sized
-        r["cap"] = r["cap"] or S.brand_site_caps(r["brand"]).get(r["pid"]) or (qcache.get(r["asin"]) or {}).get("cap")
+        r["cap"] = r["cap"] or S.CAP_MANUAL.get(r["pid"]) or S.brand_site_caps(r["brand"]).get(r["pid"]) or (qcache.get(r["asin"]) or {}).get("cap")
         if r["cat"] == "booster" and not r.get("dims"):
             r["dims"] = (qcache.get(r["asin"]) or {}).get("dims")   # product page, last
         r["ppd"] = round(r["price"] / r["qty"], 3) if r["qty"] else None

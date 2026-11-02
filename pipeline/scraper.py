@@ -366,7 +366,11 @@ def qty_table(desc):
 
 
 # ---------- absorbency ----------
-def capacity_ml(desc, lo=1000, hi=20000):
+# Lowest capacity read from text for diapers and pull-ups (owner 2026-11-02: Tranquility briefs are 300-800 mL)
+CAP_MIN = 250
+
+
+def capacity_ml(desc, lo=CAP_MIN, hi=20000):
     vals = []
     # '11,500 ml', '11 500 ml', '1.200ml'
     for raw in re.findall(r"(\d{1,2}[,\. ]\d{3}|\d{3,5})\s*(?:ml|mL|ML|millilit)", desc):
@@ -413,7 +417,7 @@ def brand_site_caps(brand):
                     continue
                 cat = "booster" if re.search(r"booster", name, re.I) else "diaper"
                 desc = text((it.get("description") or "") + " " + (it.get("short_description") or ""))
-                lo, hi = (100, 5000) if cat == "booster" else (1000, 20000)
+                lo, hi = (100, 5000) if cat == "booster" else (CAP_MIN, 20000)
                 cap = capacity_ml(desc, lo, hi) or oz_ml(desc, lo, hi)
                 if not cap:   # 'over 181 oz capacity'
                     v = [int(round(float(x) * 29.5735)) for x in re.findall(r"(\d{2,3}(?:\.\d)?)\s*(?:fl\.?\s*)?(?:oz|ounces)\.?\s+(?:of\s+)?(?:capacity|absorb)", desc, re.I)]
@@ -432,7 +436,7 @@ def brand_site_caps(brand):
     return out
 
 
-def oz_ml(desc, lo=1000, hi=20000):
+def oz_ml(desc, lo=CAP_MIN, hi=20000):
     """'Absorbs up to 115 fl oz' -> 3400 mL. Only an oz figure after 'absorb...'/'capacity'/'holds' (oz is also a weight)."""
     vals = [int(round(float(x) * 29.5735 / 10.0)) * 10
             for x in re.findall(r"(?:absor\w*|capacity|holds?)[^.;]{0,40}?(\d{1,3}(?:\.\d)?)\s*(?:fl\.?\s*)?oz\b", desc, re.I)]
@@ -450,7 +454,7 @@ _ML = re.compile(r"(\d{1,2}[,\. ]\d{3}|\d{3,5})\s*(?:ml|millilit)", re.I)
 _SPLIT = {"S/M": ("S", "M"), "M/L": ("M", "L"), "L/XL": ("L", "XL")}
 
 
-def caps_by_size(desc, lo=1000, hi=20000):
+def caps_by_size(desc, lo=CAP_MIN, hi=20000):
     """{size: mL} when the description gives a capacity per size (at least two sizes), else {}."""
     out, last, loose = {}, 0, []
     for m in _ML.finditer(desc):
@@ -764,6 +768,7 @@ def abena_names(rows):
 CAP_MANUAL = {
     "diaper|rearz|mega safari": 11000,   # Rearz product image, confirmed by the owner 2026-10-28
     "diaper|rearz|bella daytime lil": 6000,   # Lil Bella Daytime, Rearz product image, owner 2026-10-28
+    "diaper|little for big|pants potty": 5500,   # Little for Big Potty Pants (owner 2026-11-02)
 }
 
 
@@ -984,7 +989,7 @@ def parse_store(store, base, products):
             p = dict(p, options=[dict(o, values=list(o.get("values", []))) for o in p.get("options", [])])
             add_case_variants(base, p)
         desc = text(p.get("body_html"))
-        lo_hi = (100, 5000) if cat == "booster" else (1000, 20000)
+        lo_hi = (100, 5000) if cat == "booster" else (CAP_MIN, 20000)
         cap = capacity_ml(desc, *lo_hi)
         if cap is None and VIA.get(store) is None:
             cap = page_capacity(base, p["handle"], *lo_hi)

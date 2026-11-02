@@ -199,7 +199,8 @@ def text(h):
 # ---------- classification ----------
 EXCLUDE = re.compile(r"\b(pad|pads|underpad|booster|liner|washable|reusable|bodysuit|onesie|jogging|"
                      r"training pants?|cover|covers|pail|refill|cream|bag of bags|diaper bags|bottle|pacifier|"
-                     r"bib|socks?|bath|mat|strips|panty|carole martin|beanie|gift card|swim|t-?shirt|sticker|exercise|pulley|stuffer|insert|mattress)\b", re.I)
+                     r"bib|socks?|bath|mat|strips|panty|carole martin|beanie|gift card|swim|t-?shirt|sticker|exercise|pulley|stuffer|insert|mattress|"
+                     r"threaded armou?r|all[- ]in[- ]one cloth|diaper fasteners?|snappi)\b", re.I)
 DIAPER_WORD = re.compile(r"diaper|brief|pull[- ]?(up|on)s?|protective underwear|absorbent underwear|"
                          r"disposable underwear|couche|tena slip|slip (?:brief|active|maxi|super|plus|junior)|breezers", re.I)
 
@@ -251,8 +252,8 @@ SIZE_PATTERNS = [
     (r"\b(xx-?small|xxs)\b", "XXS"), (r"\b(x-?small|xs)\b", "XS"),
     (r"\b(s\s*/\s*m|small\s*/\s*medium)\b", "S/M"), (r"\b(m\s*/\s*l|medium\s*/\s*large)\b", "M/L"),
     (r"\b(l\s*/\s*xl)\b", "L/XL"),
-    (r"\b(4xl|xxxx-?large)\b", "4XL"), (r"\b(3xl|xxx-?large)\b", "3XL"),
-    (r"\b(2xl|xxl|xx-?large|2x-?large|x-?large\s*\+|xlarge\+|xl\+|bariatric)", "XXL"),
+    (r"\b(4xl|xxxx-?large)\b", "4XL"), (r"\b(3xl|xxxl|xxx-?large|3x)\b", "3XL"),
+    (r"\b(2xl|xxl|2x\b|xx-?large|2x-?large|x-?large\s*\+|xlarge\+|xl\+|bariatric)", "XXL"),
     (r"\b(xl|x-?large|extra\s*large)\b", "XL"),
     (r"\b(regular|r)\b", "Regular"), (r"\b(small|s)\b", "S"), (r"\b(medium|m)\b", "M"), (r"\b(large|l)\b", "L"),
 ]
@@ -293,7 +294,7 @@ def qty_from_variant(s):
     return None
 
 
-SIZE_TOKEN = re.compile(r"(?<![\w/])(XXS|XS|S/M|M/L|L/XL|L/2XL|XXL|2XL|2X|3XL|XL|Small|Medium|Large|X-Large|Extra Large|Regular|R|S|M|L)(?![\w/])")
+SIZE_TOKEN = re.compile(r"(?<![\w/])(XL/2XL|XXS|XS|S/M|M/L|L/XL|L/2XL|XXXL|XXL|2XL|2X|3XL|3X|XL|Small|Medium|Large|X-Large|Extra Large|Regular|R|S|M|L)(?![\w/])")
 PER_PKG = re.compile(r"(\d+)\s*(?:units?|ct|briefs|diapers|boosters|pads|pcs|pieces)?\s*(?:/|per)\s*(?:pkg|package|bag|pack)\b", re.I)
 
 
@@ -310,7 +311,7 @@ def qty_table(desc):
             lab = size_of("XXL" if t == "2X" else t) or t
         fwd = desc[m.end():m.end() + 70]
         case = None
-        mc = re.match(r"\s*[-–,]?\s*(\d+)\s*(?:pkgs?|bags?|packs?)\s*(?:/|per)\s*case", fwd, re.I)
+        mc = re.match(r"\s*[-–,]?\s*(\d+)\s*(?:pkgs?|bags?|packs?|packages?)\s*(?:/|per)\s*case", fwd, re.I)
         if mc:
             case = per * int(mc.group(1))
         mt = re.match(r"[^()]{0,40}\((\d+)(?:\s*total)?\)", fwd)
@@ -344,7 +345,12 @@ def qty_table(desc):
         mc = re.search(r"(\d+|two|three|four|five|six|eight) (?:packages|packs|bags) (?:per|in a|to a) case", desc, re.I)
         n = (int(mc.group(1)) if mc.group(1).isdigit() else words[mc.group(1).lower()]) if mc else None
         table["*"] = (int(m.group(1)), int(m.group(1)) * n if n else None)
-    m = re.search(r"sample (?:pack|bag)? ?contains (\d+)", desc, re.I)
+    # 'S/M: ... (38 total) - Value Pack: (80 total)' (Healthwick Depend)
+    for m in re.finditer(r"value pack\s*:?\s*\((\d+)\s*total\)", desc, re.I):
+        toks = SIZE_TOKEN.findall(desc[max(0, m.start() - 140):m.start()])
+        if toks:
+            table.setdefault("value|" + (size_of("XXL" if toks[-1] == "2X" else toks[-1]) or toks[-1]), (int(m.group(1)), int(m.group(1))))
+    m = re.search(r"sample (?:pack|bag)? ?(?:contains|consists of) (\d+)", desc, re.I)
     if m:
         table["sample"] = (int(m.group(1)), None)
     return table
@@ -748,7 +754,8 @@ _RAW_CACHE = {}
 
 def _page_raw(base, handle, why):
     """Product page HTML (cached; '' when it cannot be read, after logging '<why> fail <url> <error>')."""
-    url = f"{base}/products/{urllib.parse.quote(handle)}"
+    # AgeComfort sends cloud servers from agecomfort.com to www.agecomfort.com; its product pages live there
+    url = f"{base.replace('//agecomfort.com', '//www.agecomfort.com')}/products/{urllib.parse.quote(handle)}"
     if url not in _RAW_CACHE:
         try:
             _RAW_CACHE[url] = _get(url, timeout=30)
@@ -873,6 +880,20 @@ def page_text(base, handle):
     return _PAGE_CACHE[url]
 
 
+def page_description(base, handle):
+    """The product's own description on its page (not menus or related products), for facts the feed leaves out.
+    AgeComfort: 'Details ... Read Less'; other Shopify themes: the product description block."""
+    raw = _page_raw(base, handle, "page description")
+    if not raw:
+        return ""
+    t = text(re.sub(r"<script.*?</script>|<style.*?</style>", " ", raw, flags=re.S))
+    m = re.search(r"\bDetails\b((?:(?!\bDetails\b).){20,4000}?)\b(?:Read Less|Show less)\b", t, re.S | re.I)
+    if m:
+        return m.group(1)
+    m = re.search(r'class="[^"]*(?:product__description|product-description|product-single__description)[^"]*"[^>]*>(.{20,6000}?)</div>', raw, re.S)
+    return text(m.group(1)) if m else ""
+
+
 def page_capacity(base, handle, lo, hi):
     """Some stores (e.g. ABUniverse) keep capacity in a spec table on the product page rather than in the
     description: 'Absorbency *Capacity varies by size 6050ml'. Read the page and accept only an mL figure
@@ -942,12 +963,28 @@ def parse_store(store, base, products):
             size = size_of(" ".join(size_s)) or size_of(" ".join(pkg_s)) or prod_size or "One size"
             pkg = pkg_of(" ".join(pkg_s) or vt, p["title"])
             qty = qty_from_variant(" ".join(pkg_s) or vt)
+            # AgeComfort lists sizes by item number: 'AC1207 AC1207C Small, 25"-35" 16/bag 64/case (4 bags)'
+            sk = (v.get("sku") or "").strip()
+            ms = re.search(r"\b" + re.escape(sk) + r"\b(?:\s+\w+C\b)?\s*([^/]{0,40}?)\s(\d+)\s*/\s*bag\s+(\d+)\s*/\s*case", desc, re.I) if len(sk) >= 4 else None
+            if ms:
+                if size == "One size" and size_of(ms.group(1)):
+                    size = size_of(ms.group(1))
+                if qty is None:
+                    qty = int(ms.group(3)) if (sk.upper().endswith("C") or pkg == "Case") else int(ms.group(2))
+                    if sk.upper().endswith("C"):
+                        pkg = "Case"
+            # 'Value Pack' = a case: its own total per size ('Value Pack: (80 total)', Healthwick Depend)
+            value_pack = bool(re.search(r"value\s*pack", " ".join(pkg_s) or vt, re.I))
+            if value_pack:
+                pkg, qty = "Case", (qt.get("value|" + size) or (None,))[0]
             nb = re.search(r"(\d+)\s*(?:bags?|sacs?)\b", vt, re.I)
             if nb and not re.search(r"\(\d+\)", vt):
                 per0 = (qt.get(size) or qt.get("*") or (None,))[0]
                 qty = per0 * int(nb.group(1)) if per0 else None
-            if qty is None:
-                per, tot = qt.get(size) or qt.get("*") or (None, None)
+            if qty is None and not value_pack:
+                # a table row for 'S' answers an 'S/M' option when it is the only match ('S (Size 1): 20 briefs/bag')
+                part = [qt[k] for k in (size.split("/") if "/" in size else []) if k in qt]
+                per, tot = qt.get(size) or (part[0] if len(part) == 1 else None) or qt.get("*") or (None, None)
                 if pkg == "Sample":
                     qty = (qt.get("sample") or (None,))[0] or qty_from_variant(p["title"]) or None
                 elif pkg == "Case":
@@ -956,6 +993,11 @@ def parse_store(store, base, products):
                     qty = per
                 if qty is None and pkg != "Sample":
                     qty = qty_from_variant(p["title"])
+                if qty is None and VIA.get(store) is None:
+                    # missing from the feed: the product page's own description (owner 2026-11-01)
+                    pq = qty_table(page_description(base, p["handle"]))
+                    pper, ptot = pq.get(size) or pq.get("*") or (None, None)
+                    qty = (pq.get("sample") or (None,))[0] if pkg == "Sample" else (ptot if pkg == "Case" else pper)
                 if qty is None and pkg == "Sample" and re.match(r"\s*sample\b", p["title"], re.I) \
                         and not re.search(r"pack|bag|kit", p["title"], re.I):
                     qty = 1  # single-unit samples (e.g. AgeComfort "SAMPLE ..." listings)
@@ -1081,6 +1123,20 @@ def main():
                     hist.update(json.load(open(os.path.join(root, f))).get("h", {}))
     live_ids = {r["id"] for r in all_rows}
     cutoff = (datetime.date.fromisoformat(today) - datetime.timedelta(days=60)).isoformat()
+    # a parsing fix gives a row a new id (Store|handle|size|pkg|qty|variant): carry its history over when exactly one
+    # old row of the same listing matches, first on size + variant (count or package fixed), then on package + variant
+    # (size fixed, e.g. '2X' read as XXL instead of One size)
+    for tier in (lambda x: (x[0], x[1], x[2], x[5]), lambda x: (x[0], x[1], x[3], x[5])):
+        spare, need = {}, {}
+        for k in hist:
+            if k not in live_ids and k.count("|") >= 5:
+                spare.setdefault(tier(k.split("|", 5)), []).append(k)
+        for r in all_rows:
+            if r["id"] not in hist and r["id"].count("|") >= 5:
+                need.setdefault(tier(r["id"].split("|", 5)), []).append(r["id"])
+        for key, new in need.items():
+            if len(new) == 1 and len(spare.get(key, [])) == 1:
+                hist[new[0]] = hist.pop(spare[key][0])
     hist = {k: v for k, v in hist.items() if k in live_ids or (v and v[-1][0] >= cutoff)}
     for r in all_rows:
         if r.get("stale"):

@@ -436,7 +436,9 @@ def main(out, prev):
         if r.get("name", "").startswith(r["brand"] + " "):
             it = {"asin": r["asin"], "title": r["name"][len(r["brand"]) + 1:], "price": r["price"], "img": None}
             nr = to_row(it, r["brand"], r.get("checked"))
-            if nr and nr["cat"] == r["cat"]:
+            if nr is None:
+                return None   # now excluded (e.g. reusable cloth diapers, owner 2026-11-01)
+            if nr["cat"] == r["cat"]:
                 nr.pop("img", None)
                 return nr
         return r
@@ -448,7 +450,7 @@ def main(out, prev):
     daily = MONTHLY_BUDGET / calendar.monthrange(y, mth)[1]
     n_today = int(min(len(QUERIES), remaining // days_left, math.ceil(daily * 1.5)))
     order = sorted(QUERIES, key=lambda q: (last.get(q, ""), QUERIES.index(q)))
-    backlog = len({r["asin"] for r in map(reparse, prev_amz.values()) if wants_page(r)})
+    backlog = len({r["asin"] for r in map(reparse, prev_amz.values()) if r and wants_page(r)})
     n_search = max(min(MIN_SEARCHES, n_today), n_today - backlog) if backlog else n_today
     reserve = max(0, min(PAGE_LOOKUPS, backlog, remaining - n_search))   # credits kept for product pages
     todo = order[:n_search]
@@ -498,7 +500,7 @@ def main(out, prev):
     seen_asins = {r["asin"] for r in found.values()}
     carried = [r for rid, r in prev_amz.items() if rid not in found and r.get("asin") not in seen_asins
                and (r.get("checked") or "") >= cutoff]
-    carried = [reparse(r) for r in carried]
+    carried = [r for r in map(reparse, carried) if r]
     amz = list(found.values()) + carried
     fresh = {id(r) for r in found.values()}
 

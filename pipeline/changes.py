@@ -64,13 +64,21 @@ def main():
     for k in out:
         if k not in prev and len(spare.get(loose(k), [])) == 1:
             renamed[k] = spare[loose(k)][0]
-    # a size found later (Amazon titles without one are 'One size' until the product page is read)
+    # a size found later or corrected ('One size' -> M, '2X' read as XXL): same listing, package and variant
+    used = set(renamed.values())
+    def by_pkg(k):
+        x = k.split("|")
+        return tuple(x[:2] + x[3:4] + x[5:])
+    spare2, need2 = {}, {}
+    for k in prev:
+        if k not in out and k not in used:
+            spare2.setdefault(by_pkg(k), []).append(k)
     for k in out:
         if k not in prev and k not in renamed:
-            x = k.split("|")
-            c = spare.get(tuple(x[:2] + ["One size"] + x[5:]), [])
-            if len(c) == 1:
-                renamed[k] = c[0]
+            need2.setdefault(by_pkg(k), []).append(k)
+    for key, new in need2.items():
+        if len(new) == 1 and len(spare2.get(key, [])) == 1:
+            renamed[new[0]] = spare2[key][0]
     if len(set(renamed.values())) != len(renamed):
         renamed = {k: v for k, v in renamed.items() if list(renamed.values()).count(v) == 1}
 

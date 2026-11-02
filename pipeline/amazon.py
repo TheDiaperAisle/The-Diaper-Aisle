@@ -28,6 +28,12 @@ CARRY_DAYS = 14
 # (owner 2026-11-01: clean the data up quickly); with no backlog every credit goes to searches again.
 PAGE_LOOKUPS = 40
 MIN_SEARCHES = 8
+# Other pack sizes of tracked products that searches never show (Amazon lists one or two versions of a product per
+# search; Sunkiss Masterpiece 40-count cases were missing, owner 2026-11-02). A product page names all its versions;
+# a version with a size + pack count the tracker lacks for that product is watched: its own page is read for the price,
+# at most WATCH_PAGES a day, each about once a week (carried forward in between). Colour-only versions are skipped.
+WATCH_PAGES = 4
+WATCH_DAYS = 7
 PAGE_RETRY_DAYS = 45   # pages that gave no count are tried again after this long
 BASE = "https://www.amazon.ca"
 
@@ -211,7 +217,7 @@ def amazon_pkg(title, qty):
     # 2-3 diapers is a sample pack, whatever the listing calls it (owner 2026-11-01, Little for Big 2 Pieces)
     if (qty and qty <= 3) or re.search(r"\bsample\b|\btrial\b", title, re.I):
         return "Sample"
-    return "Case" if (re.search(r"\bcase\b", title, re.I) or (qty and qty > 40)) else "Bag"
+    return "Case" if (re.search(r"\bcase\b", title, re.I) or (qty and qty >= 40)) else "Bag"
 
 
 def page_qty(raw):
@@ -272,6 +278,26 @@ def page_cap(raw, size, cat):
             re.findall(r"(\d{2,3}(?:\.\d)?)\s*(?:fl\.?\s*)?(?:oz|ounces)\.?\s+(?:of\s+)?(?:capacity|absorb)", t, re.I)]
     vals = [v for v in vals if lo <= v <= hi]
     return max(vals) if vals else None
+
+
+def page_siblings(raw):
+    """Amazon product page -> {asin: 'Blue S/M(Pack of 40)'} for every version of the product"""
+    m = re.search(r'"dimensionValuesDisplayData"\s*:\s*(\{[^{}]*\})', raw)
+    try:
+        return {a: " ".join(v) for a, v in json.loads(m.group(1)).items()} if m else {}
+    except ValueError:
+        return {}
+
+
+def page_offer(raw):
+    """Amazon product page -> (title, price, in stock) for the listing itself, or None"""
+    t = re.search(r'id="productTitle"[^>]*>\s*([^<]+?)\s*<', raw)
+    p = re.search(r'id="corePrice[^"]*".{0,3000}?class="a-offscreen">\$([\d,]+\.\d{2})<', raw, re.S)
+    if not (t and p):
+        return None
+    a = re.search(r'id="availability"[^>]*>(.{0,400})', raw, re.S)
+    av = re.sub(r"<[^>]+>", " ", a.group(1)) if a else ""
+    return html.unescape(t.group(1)), float(p.group(1).replace(",", "")), not re.search(r"unavailable|out of stock", av, re.I)
 
 
 def fetch_page(asin, key):
@@ -543,6 +569,50 @@ def main(out, prev):
             status["ok"] = False
             status["error"] = errors[0][:200]
 
+    # other pack sizes of tracked products (see WATCH_PAGES): find them from the versions product pages list
+    watch = st.setdefault("watch", {})
+    known_rows = list(found.values()) + [r for r in prev_amz.values() if r["asin"] not in {x["asin"] for x in found.values()}]
+    tracked = {r["asin"] for r in known_rows}
+    have = {(r["pid"], r["size"], r.get("qty")) for r in known_rows}
+    for r in known_rows:
+        for a2, lab in ((qcache.get(r["asin"]) or {}).get("sib") or {}).items():
+            if a2 in tracked or a2 in watch or a2 in NOT_TRACKED:
+                continue
+            combo = (r["pid"], amazon_size(lab), amazon_qty(lab)[0])
+            if combo[1] == "One size" or combo in have:
+                continue   # a colour of a size + pack the tracker already has
+            have.add(combo)
+            watch[a2] = {"brand": r["brand"], "last": ""}
+    due = sorted((w["last"], a) for a, w in watch.items() if a not in {x["asin"] for x in found.values()}
+                 and w["last"] <= (datetime.date.fromisoformat(today) - datetime.timedelta(days=WATCH_DAYS)).isoformat())
+    status["watched"] = 0
+    for _, a in due[:WATCH_PAGES if key else 0]:
+        if st.get("used", 0) >= MONTHLY_BUDGET:
+            break
+        try:
+            raw, used = fetch_page(a, key)
+        except Exception as e:  # noqa
+            errors.append(f"page {a}: {e}")
+            continue
+        st["used"] = st.get("used", 0) + used
+        watch[a]["last"] = today
+        off = page_offer(raw)
+        if not off:
+            continue
+        title, price, avail = off
+        brand = watch[a]["brand"]
+        title = re.sub(r"^" + re.escape(brand) + r"\s+", "", title, flags=re.I)
+        nr = to_row({"asin": a, "title": title, "price": price, "img": None}, brand, today)
+        if nr:
+            nr["avail"] = avail
+            nr.pop("img", None)
+            found[nr["id"]] = nr
+            qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "cap": page_cap(raw, page_size(raw) or nr["size"], nr["cat"]),
+                         "dims": S.dims_of(page_text(raw)) if nr["cat"] == "booster" else None, "sib": page_siblings(raw), "d": today}
+            status["watched"] += 1
+        time.sleep(1)
+    status["credits_month"] = st["used"]
+
     # carry forward listings not seen today (until CARRY_DAYS old)
     cutoff = (datetime.date.fromisoformat(today) - datetime.timedelta(days=CARRY_DAYS)).isoformat()
     seen_asins = {r["asin"] for r in found.values()}
@@ -579,7 +649,7 @@ def main(out, prev):
             r = by_asin[a]
             size = page_size(raw) or r["size"]
             qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "cap": page_cap(raw, size, r["cat"]),
-                         "dims": S.dims_of(page_text(raw)) if r["cat"] == "booster" else None, "d": today}
+                         "dims": S.dims_of(page_text(raw)) if r["cat"] == "booster" else None, "sib": page_siblings(raw), "d": today}
         time.sleep(1)
     status["pages"] = lookups
     status["pages_waiting"] = max(0, len(pending) - lookups)

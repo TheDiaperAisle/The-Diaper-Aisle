@@ -149,6 +149,16 @@ a.go{color:var(--accent);text-decoration:none;font-weight:700;white-space:nowrap
 a.go:hover{text-decoration:underline}
 .more{display:flex;justify-content:center;padding:var(--space-4)}
 .more button{font:inherit;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--radius-full);padding:10px 22px;cursor:pointer}
+/* product images: hover preview and enlarged view */
+.zoomable{cursor:zoom-in}
+.zoom{position:fixed;z-index:50;width:300px;height:300px;background:#fff;border:3px solid var(--aisle-ink);border-radius:var(--radius-md);box-shadow:0 12px 32px rgb(0 0 0 / .25);padding:8px;pointer-events:none;opacity:0;transition:opacity .12s}
+.zoom.on{opacity:1}
+.zoom img{width:100%;height:100%;object-fit:contain;display:block}
+#imgdlg{max-width:min(600px,calc(100vw - 32px))}
+.imgbox{padding:16px;display:grid;gap:10px;justify-items:center}
+.imgbox .close{justify-self:end}
+.imgbox img{width:100%;max-width:560px;max-height:min(560px,calc(100vh - 160px));object-fit:contain;background:#fff;border-radius:10px}
+.imgcap{font-weight:600;text-align:center}
 .empty-state{padding:40px 16px;text-align:center;color:var(--muted)}
 /* product pop-up */
 dialog{border:3px solid var(--aisle-ink);border-radius:var(--radius-md);background:var(--bg);color:var(--ink);padding:0;max-width:min(720px,calc(100vw - 32px));width:100%;max-height:calc(100vh - 48px)}
@@ -159,7 +169,7 @@ dialog::backdrop{background:rgb(51 37 76 / .55)}
 .kv div{background:var(--surface);padding:8px 10px;border-radius:10px}
 .kv span{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .kv b{font-weight:600;font-variant-numeric:tabular-nums}
-.dlg .close{justify-self:end;font:inherit;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:none;border:2px solid var(--border);color:var(--ink);padding:4px 14px;border-radius:var(--radius-full);cursor:pointer}
+.dlg .close,.imgbox .close{justify-self:end;font:inherit;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:none;border:2px solid var(--border);color:var(--ink);padding:4px 14px;border-radius:var(--radius-full);cursor:pointer}
 svg text{fill:var(--muted);font-family:var(--f-sans);font-size:10px}
 footer{color:var(--muted);font-size:12px;line-height:18px}
 @media (max-width:640px){.hero h1{font-size:28px;line-height:32px}.brand img{width:96px}.filters{grid-template-columns:1fr 1fr}.filters .field.search{grid-column:1/-1}}
@@ -246,6 +256,8 @@ footer{color:var(--muted);font-size:12px;line-height:18px}
 </div>
 
 <dialog id="dlg"><div class="dlg" id="dlg-body"></div></dialog>
+<dialog id="imgdlg" aria-label="Product image"><div class="imgbox"><button class="close" type="button" id="img-close">Close</button><img id="img-big" alt=""><div class="imgcap" id="img-cap"></div></div></dialog>
+<div class="zoom" id="zoom" aria-hidden="true"><img alt=""></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -436,7 +448,7 @@ function render(){
     const th = S.thumbs[r.t];
     const d = r.prev!=null && r.prev!==r.price ? `<span class="delta ${r.price>r.prev?"up":"down"}">${r.price>r.prev?"▲":"▼"} from ${money(r.prev)}</span>` : "";
     return `<tr data-id="${esc(r.id)}">
-      <td>${th ? `<img class="th" loading="lazy" alt="" src="${th}">` : `<div class="th empty"></div>`}</td>
+      <td>${th ? `<img class="th zoomable" loading="lazy" alt="" src="${th}" data-t="${esc(r.t)}" data-name="${esc(r.brand+" "+r.dname)}" tabindex="0" title="Click to enlarge">` : `<div class="th empty"></div>`}</td>
       <td><div class="pname">${esc(r.dname)}${r.variant?`<span class="var">${esc(r.variant)}</span>`:""}${r.cat==="booster" && r.size!=="One size"?`<span class="var">Size ${esc(r.size)}</span>`:""}</div><div class="pbrand">${r.avail?"":(r.bo?'<span class="badge oos" title="The store still takes orders and ships once it is back in stock">Out of stock · backorder</span>':'<span class="badge oos">Out of stock</span>')} ${r.stale?'<span class="badge stale">Stale price</span>':""}</div></td>
       <td>${esc(r.brand||"")}</td>
       <td>${esc(r.store)}</td>
@@ -497,7 +509,7 @@ async function openRow(id){
   const sizeBar = sizes.length > 1 ? `<div><div class="field"><label>Sizes</label></div><div class="sizes">${sizes.map(sz => { const p = pick(sz);
     return `<button type="button" data-id="${esc(p.id)}" aria-current="${sz===r.size}">${esc(sz)} <span class="muted">${unit(p.ppd)}</span></button>`; }).join("")}</div></div>` : "";
   body.innerHTML = `<button class="close" type="button" id="dlg-close">Close</button>
-    <div style="display:flex;gap:12px;align-items:center">${S.thumbs[r.t]?`<img class="th" style="width:72px;height:72px" alt="" src="${S.thumbs[r.t]}">`:""}<div><div class="pbrand">${esc(r.brand)}</div><h2>${esc(r.dname)}</h2></div></div>
+    <div style="display:flex;gap:12px;align-items:center">${S.thumbs[r.t]?`<img class="th zoomable" data-t="${esc(r.t)}" data-name="${esc(r.brand+" "+r.dname)}" tabindex="0" title="Click to enlarge" style="width:72px;height:72px" alt="" src="${S.thumbs[r.t]}">`:""}<div><div class="pbrand">${esc(r.brand)}</div><h2>${esc(r.dname)}</h2></div></div>
     <div class="kv">${kv.map(([k,v])=>`<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
     ${sizeBar}
     <div><div class="field"><label>${r.size} at every store (${new Set(peers.map(p=>p.store)).size} ${new Set(peers.map(p=>p.store)).size===1?"store":"stores"}, all packages and variants)</label></div>${cmpTable}</div>
@@ -546,7 +558,7 @@ $("#f-prov").addEventListener("change", () => { applyShip(); markLowest(); rende
 $("#storebar").addEventListener("click", e => { const b = e.target.closest("button[data-store]"); if(!b) return; const n=b.dataset.store; S.stores.has(n)?S.stores.delete(n):S.stores.add(n); b.setAttribute("aria-pressed", S.stores.has(n)); S.limit=100; render(); remember(); });
 document.querySelector("thead").addEventListener("click", e => { const b = e.target.closest("button[data-k]"); if(!b) return; const k=b.dataset.k; S.sort = S.sort.k===k ? {k, dir:S.sort.dir==="asc"?"desc":"asc"} : {k, dir: ["name","brand","store","size","pkg","ppd","dpd","ppl","dpl","price","qty"].includes(k) ? "asc" : "desc"}; render(); remember(); });
 $("#more-btn").addEventListener("click", () => { S.limit += 100; render(); });
-$("#rows").addEventListener("click", e => { if(e.target.closest("a")) return; const tr = e.target.closest("tr[data-id]"); if(tr) openRow(tr.dataset.id); });
+$("#rows").addEventListener("click", e => { if(e.target.closest("a") || e.target.closest(".zoomable")) return; const tr = e.target.closest("tr[data-id]"); if(tr) openRow(tr.dataset.id); });
 $("#reset").addEventListener("click", () => { $("#q").value=""; document.querySelectorAll(".ms-pop input").forEach(i => i.checked = false); MS.forEach(msLabel); $("#f-stock").checked=false; $("#f-best").checked=false; S.stores.clear(); S.limit=100; renderStores(); render(); remember(); });
 $("#dlg").addEventListener("click", e => { if(e.target.id==="dlg") e.target.close(); });
 // inside the pop-up: a store row or a size button switches to that listing
@@ -559,6 +571,38 @@ $("#report-copy").addEventListener("click", async e => {
   setTimeout(() => { b.textContent = "Copy address"; }, 2500);
 });
 
+// ---------- product images: hover preview (mouse) and click/tap to enlarge ----------
+// the stored thumbnails are 88px; the store's own image is asked for at a larger size (owner 2026-11-02)
+function bigSrc(src){
+  return src.replace(/([?&]width=)\d+/, "$1600")                       // Shopify CDN
+            .replace(/\/stencil\/\d+w\/(.*?)[?&]width=\d+/, "/stencil/608x608/$1")   // BigCommerce (Rearz)
+            .replace(/\._AC_[A-Z]{2}\d+_\./, "._AC_SL600_.");             // Amazon
+}
+function setImg(img, el){ const t = el.dataset.t; img.onerror = () => { img.onerror = null; img.src = S.thumbs[t] || ""; }; img.src = (S.big && S.big[t]) || S.thumbs[t] || ""; }
+const zoom = $("#zoom"), canHover = matchMedia("(hover:hover) and (pointer:fine)").matches;
+function showZoom(el){
+  if(!canHover || $("#imgdlg").open) return;
+  setImg(zoom.querySelector("img"), el);
+  const r = el.getBoundingClientRect(), w = 300, gap = 12;
+  let left = r.right + gap; if(left + w > innerWidth - 8) left = Math.max(8, r.left - w - gap);
+  zoom.style.left = left + "px"; zoom.style.top = Math.max(8, Math.min(innerHeight - w - 8, r.top + r.height / 2 - w / 2)) + "px";
+  zoom.classList.add("on");
+}
+const hideZoom = () => zoom.classList.remove("on");
+function openImg(el){
+  hideZoom();
+  setImg($("#img-big"), el); $("#img-big").alt = el.dataset.name || "";
+  $("#img-cap").textContent = el.dataset.name || "";
+  const d = $("#imgdlg"); if(!d.open) d.showModal();
+}
+document.addEventListener("mouseover", e => { const el = e.target.closest(".zoomable"); if(el) showZoom(el); });
+document.addEventListener("mouseout", e => { if(e.target.closest(".zoomable")) hideZoom(); });
+document.addEventListener("click", e => { const el = e.target.closest(".zoomable"); if(el){ e.stopPropagation(); openImg(el); } }, true);
+document.addEventListener("keydown", e => { if(e.key === "Enter" && e.target.classList?.contains("zoomable")){ e.preventDefault(); e.stopPropagation(); openImg(e.target); } }, true);
+$("#img-close").addEventListener("click", () => $("#imgdlg").close());
+$("#imgdlg").addEventListener("click", e => { if(e.target.id === "imgdlg") e.target.close(); });
+addEventListener("scroll", hideZoom, {passive:true});
+
 // data (static files published to data/ by the daily run)
 const V = "?v=" + Math.floor(Date.now()/3.6e6);
 async function getJSON(p){ const r = await fetch("data/" + p + V); if(!r.ok) throw new Error(p + " " + r.status); return r.json(); }
@@ -570,7 +614,7 @@ async function loadSet(name, n){ return Promise.all([...Array(n||0).keys()].map(
     catDocs.clear(); cats.forEach((d,i) => catDocs.set("c"+i, d));
     renderStatus(); renderStores(); rebuildRows();
     const th = await loadSet("thumbs", S.meta.thumbDocs); const o = {};
-    th.forEach(d => Object.entries(d.t||{}).forEach(([k,v]) => o[k]=v.d)); S.thumbs = o; render();
+    const big = {}; th.forEach(d => Object.entries(d.t||{}).forEach(([k,v]) => { o[k]=v.d; if(v.src) big[k]=bigSrc(v.src); })); S.thumbs = o; S.big = big; render();
   }catch(e){ $("#status").innerHTML = '<span class="pill"><span class="dot bad"></span>Tracker data could not be loaded. Reload to retry.</span>'; render(); }
 })();
 </script>

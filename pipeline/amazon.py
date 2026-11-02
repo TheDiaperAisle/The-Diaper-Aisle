@@ -301,6 +301,16 @@ def page_offer(raw):
     return html.unescape(t.group(1)), float(p.group(1).replace(",", "")), not re.search(r"unavailable|out of stock", av, re.I)
 
 
+def page_image(raw):
+    """Amazon product page -> the main product image URL (smallest listed size), or None"""
+    m = re.search(r'id="landingImage"[^>]*data-a-dynamic-image="([^"]+)"', raw)
+    try:
+        imgs = json.loads(html.unescape(m.group(1))) if m else {}
+    except ValueError:
+        return None
+    return min(imgs, key=lambda u: imgs[u][0]) if imgs else None
+
+
 def fetch_page(asin, key):
     """-> (raw html of the Amazon.ca product page, credits used)"""
     body = json.dumps({"url": f"{BASE}/dp/{asin}", "formats": ["rawHtml"],
@@ -611,10 +621,9 @@ def main(out, prev):
         title, price, avail = off
         brand = watch[a]["brand"]
         title = re.sub(r"^" + re.escape(brand) + r"\s+", "", title, flags=re.I)
-        nr = to_row({"asin": a, "title": title, "price": price, "img": None}, brand, today)
+        nr = to_row({"asin": a, "title": title, "price": price, "img": page_image(raw)}, brand, today)
         if nr:
             nr["avail"] = avail
-            nr.pop("img", None)
             found[nr["id"]] = nr
             qcache[a] = {"n": page_qty(raw), "size": page_size(raw), "cap": page_cap(raw, page_size(raw) or nr["size"], nr["cat"]),
                          "dims": S.dims_of(page_text(raw)) if nr["cat"] == "booster" else None, "sib": page_siblings(raw), "d": today}
@@ -761,6 +770,17 @@ def main(out, prev):
             thumb = make_thumb(asin_image(r["t"].split("|", 1)[1]), Image)
             if thumb:
                 thumbs[r["t"]] = thumb
+    # still none: the picture of the same product in the same colour (another pack size), else any of its pictures
+    pic = {}
+    for r in amz:
+        if r["t"] in thumbs:
+            pic.setdefault((r["pid"], r.get("variant")), thumbs[r["t"]])
+            pic.setdefault((r["pid"], "*"), thumbs[r["t"]])
+    for r in amz:
+        if r["t"] not in thumbs:
+            t = pic.get((r["pid"], r.get("variant"))) or pic.get((r["pid"], "*"))
+            if t:
+                thumbs[r["t"]] = t
 
     # rewrite the out/ files
     def chunks(items, maxbytes=140_000):

@@ -252,12 +252,12 @@ SIZE_PATTERNS = [
     (r"\b(xx-?small|xxs)\b", "XXS"), (r"\b(x-?small|xs)\b", "XS"),
     (r"\b(s\s*/\s*m|small\s*/\s*medium)\b", "S/M"), (r"\b(m\s*/\s*l|medium\s*/\s*large)\b", "M/L"),
     (r"\b(l\s*/\s*xl)\b", "L/XL"),
-    (r"\b(4xl|xxxx-?large)\b", "4XL"), (r"\b(3xl|xxxl|xxx-?large|3x)\b", "3XL"),
+    (r"\b(5xl|5x-?large|5x)\b", "5XL"), (r"\b(4xl|xxxx-?large|4x-?large|4x)\b", "4XL"), (r"\b(3xl|xxxl|xxx-?large|3x-?large|3x)\b", "3XL"),
     (r"\b(2xl|xxl|2x\b|xx-?large|2x-?large|x-?large\s*\+|xlarge\+|xl\+|bariatric)", "XXL"),
     (r"\b(xl|x-?large|extra\s*large)\b", "XL"),
     (r"\b(regular|r)\b", "Regular"), (r"\b(small|s)\b", "S"), (r"\b(medium|m)\b", "M"), (r"\b(large|l)\b", "L"),
 ]
-SIZE_ORDER = ["XXS", "XS", "S", "S/M", "M", "M/L", "L", "L/XL", "Regular", "XL", "XXL", "3XL", "4XL", "One size"]
+SIZE_ORDER = ["XXS", "XS", "S", "S/M", "M", "M/L", "L", "L/XL", "Regular", "XL", "XXL", "3XL", "4XL", "5XL", "One size"]
 
 
 def size_of(s):
@@ -634,6 +634,7 @@ LINE_NAME = {
     "diaper|abena|abri comfort form": "Abri-Form Comfort",
     "pullup|abena|3 abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (all-caps title)
     "diaper|little for big|back beauty cloth little": "Little Beauty",   # owner 2026-11-01
+    "diaper|attends|advanced bariatric dermadry technology": "Bariatric DermaDry",   # owner 2026-11-02
     "diaper|tena|max slip": "Slip Maxi",   # Rearz 'Slip Maxi (European)' merged with TENA ProSkin Slip Maxi (owner 2026-11-01)
 }
 

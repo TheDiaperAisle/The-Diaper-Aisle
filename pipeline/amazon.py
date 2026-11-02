@@ -62,6 +62,9 @@ CAP_BY_SIZE = {
 # Owner-checked listings (2026-11-01): piece counts the listing does not state, and listings that are not disposable diapers
 QTY_BY_ASIN = {"B0098798ZY": 12,    # Tranquility Premium DayTime Pull-On Underwear XXL ('XXL 12')
                "B0C8TPWV3T": 14}    # MoliCare Slip Maxi 9 Drops, M
+# Owner-checked product names for listings whose title names only a size ('Attends XXL Briefs (XXL)'); the page
+# description says 'ATTENDS BRIEFS DERMADRY BARTRC - 4X12 XXL' (owner 2026-11-02)
+LINE_BY_ASIN = {"B00Y3AWZCE": "Bariatric with Advanced DermaDry Technology"}
 NOT_TRACKED = {"B0GRTJZR84", "B0GRT3VWJZ"}   # Landofgenie Women's Cartoon Print Underwear Potty Pants (reusable underwear)
 AB_BRANDS = {"Sunkiss", "Little for Big", "Rearz", "Tykables", "ABUniverse", "LNGU", "Kiddo", "Crinklz", "Cuddlz",
              "Landofgenie", "Bambino"}
@@ -144,7 +147,7 @@ def amazon_size(title):
     sw = r"(?:x*-?small|medium|x*-?large|extra[\s-]*(?:small|large))"
     t = re.sub(r"\([^()]*\b" + sw + r"\s+to\s+" + sw + r"\b[^()]*\)", "", title, flags=re.I)
     for seg in re.split(r"[,;()|]", t):
-        seg2 = re.sub(r"large\s*/\s*(?:x-?|extra\s*)large", "L/XL", seg, flags=re.I)
+        seg2 = re.sub(r"large\s*/\s*(?:x-?|extra\s*)large", "L/XL", re.sub(r"\bbariatric\b", " ", seg, flags=re.I), flags=re.I)
         seg2 = re.sub(r"\bextra[\s-]*small\b", "XS", seg2.replace("Small/Medium", "S/M"), flags=re.I)
         sz = S.size_of(seg2)
         if sz and len(seg.strip()) <= 40:
@@ -169,6 +172,10 @@ def amazon_qty(title):
     m = m or re.search(n + r"\s*(?:/|per)\s*(?:case|bag|box|pack|pk)\b", t, re.I)
     if m:
         return ok(int(m.group(1))), True
+    # '4X12' = 4 bags of 12 (Attends: 'ATTENDS BRIEFS DERMADRY BARTRC - 4X12 XXL')
+    m = re.search(n + r"\s*[x×]\s*(\d{1,3})\b(?!\s*(?:[\"”']|in\b|inch|cm|mm|ml|oz))", t, re.I)
+    if m and int(m.group(1)) <= 12:
+        return ok(int(m.group(1)) * int(m.group(2))), True
     # '3 Packs of 12', '4 bags of 25', '(2 bags of 36)'
     m = re.search(n + r"\s*(?:packs|bags|boxes)\s+of\s+(\d{1,3})\b", t, re.I)
     if m:
@@ -199,6 +206,15 @@ def amazon_pkg(title, qty):
 
 
 def page_qty(raw):
+    n = _page_qty_fields(raw)
+    if n:
+        return n
+    # the listing's own description: '... - 4X12 XXL' (4 bags of 12)
+    q, sure = amazon_qty(page_text(raw))
+    return q if sure and q and q >= 6 else None
+
+
+def _page_qty_fields(raw):
     """Amazon product page -> 'Number of Items' (or 'Sold as a case of N'), or None.
     Sellers often leave 'Number of Items' at 1, and a case can list its bags ('4' for 4 bags of 14), so
     counts under 6 are not taken (sample packs of 2 already say so in their titles)."""
@@ -315,6 +331,7 @@ def to_row(it, brand, today):
         if not cat:
             return None
     line, title_var = S.split_title("Amazon", p, brand)
+    line = LINE_BY_ASIN.get(it["asin"], line)
     pn, pn_colour = print_name(title) if brand in AB_BRANDS else (None, None)
     if pn:
         p2 = dict(p, title=f"{brand} {pn}")

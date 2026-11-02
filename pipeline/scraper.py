@@ -387,6 +387,50 @@ def capacity_ml(desc, lo=1000, hi=20000):
     return oz_ml(desc, lo, hi)
 
 
+# ---------- brand websites (not stores: used only for facts the stores leave out) ----------
+# Little for Big publishes capacities for every print on littleforbig.com ('over 181 oz capacity', 'up to 7000 mL')
+# (owner 2026-11-02). WooCommerce store API, read once per run; a failed read just means no brand-site figures.
+BRAND_SITES = {"Little for Big": "https://www.littleforbig.com/wp-json/wc/store/products?per_page=100&page={}"}
+_BRAND_CAPS = {}
+
+
+def brand_site_caps(brand):
+    """-> {pid: capacity mL} from the brand's own website, for products the stores give no capacity for."""
+    if brand not in BRAND_SITES:
+        return {}
+    if brand in _BRAND_CAPS:
+        return _BRAND_CAPS[brand]
+    out, exact, loose = {}, {}, {}
+    try:
+        for page in range(1, 15):
+            items = json.loads(_get(BRAND_SITES[brand].format(page), timeout=60))
+            if not items:
+                break
+            for it in items:
+                name = html.unescape(it.get("name") or "")
+                if not re.search(r"\bdiapers?\b|booster", name, re.I) or re.search(r"cover|training pants|sticker|\bbag\b|wrap|pants cover", name, re.I):
+                    continue
+                cat = "booster" if re.search(r"booster", name, re.I) else "diaper"
+                desc = text((it.get("description") or "") + " " + (it.get("short_description") or ""))
+                lo, hi = (100, 5000) if cat == "booster" else (1000, 20000)
+                cap = capacity_ml(desc, lo, hi) or oz_ml(desc, lo, hi)
+                if not cap:   # 'over 181 oz capacity'
+                    v = [int(round(float(x) * 29.5735)) for x in re.findall(r"(\d{2,3}(?:\.\d)?)\s*(?:fl\.?\s*)?(?:oz|ounces)\.?\s+(?:of\s+)?(?:capacity|absorb)", desc, re.I)]
+                    v = [x for x in v if lo <= x <= hi]
+                    cap = max(v) if v else None
+                if not cap:
+                    continue
+                # 'Baby Usagi Adult Diapers 10 Pieces Pack(M)/(L)/(XL)' -> 'Baby Usagi'
+                prn = re.split(r"\s+(?:cloth back\s+)?(?:adult\s+)?(?:printed\s+)?(?:diapers?|booster)\b", name, flags=re.I)[0]
+                exact.setdefault(product_key(brand, prn.strip(), cat), cap)
+                loose.setdefault(product_key(brand, re.sub(r"\s*ultra absorbent\b", "", prn, flags=re.I).strip(), cat), cap)
+        out = {**loose, **exact}   # a name as the brand writes it beats one with 'Ultra Absorbent' taken out
+    except Exception as e:  # noqa
+        print("brand site fail", brand, e, file=sys.stderr)
+    _BRAND_CAPS[brand] = out
+    return out
+
+
 def oz_ml(desc, lo=1000, hi=20000):
     """'Absorbs up to 115 fl oz' -> 3400 mL. Only an oz figure after 'absorb...'/'capacity'/'holds' (oz is also a weight)."""
     vals = [int(round(float(x) * 29.5735 / 10.0)) * 10
@@ -1065,6 +1109,8 @@ def harmonise(rows):
         cap = best_cap(rs)
         size_cap = {sz: best_cap([r for r in rs if r["size"] == sz]) for sz in {r["size"] for r in rs}}
         manual = CAP_MANUAL.get(pid) if not cap else None  # only when no store states it in text
+        if not cap and not manual:   # then the brand's own website
+            manual = brand_site_caps(rs[0]["brand"]).get(pid)
         dims = Counter(r["dims"] for r in rs if r["dims"])
         for r in rs:
             c = size_cap.get(r["size"]) or (max(r2["cap"] for r2 in rs if r2["cap"]) if cap else None)

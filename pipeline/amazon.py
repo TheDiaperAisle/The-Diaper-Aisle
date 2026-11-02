@@ -64,7 +64,8 @@ QTY_BY_ASIN = {"B0098798ZY": 12,    # Tranquility Premium DayTime Pull-On Underw
                "B0C8TPWV3T": 14}    # MoliCare Slip Maxi 9 Drops, M
 # Owner-checked product names for listings whose title names only a size ('Attends XXL Briefs (XXL)'); the page
 # description says 'ATTENDS BRIEFS DERMADRY BARTRC - 4X12 XXL' (owner 2026-11-02)
-LINE_BY_ASIN = {"B00Y3AWZCE": "Bariatric with Advanced DermaDry Technology"}
+LINE_BY_ASIN = {"B00Y3AWZCE": "DermaDry Advance",              # product image (owner 2026-11-02)
+                "B0DBJ9ZD3L": "Overnight Bariatric Briefs"}    # product image (owner 2026-11-02)
 NOT_TRACKED = {"B0GRTJZR84", "B0GRT3VWJZ"}   # Landofgenie Women's Cartoon Print Underwear Potty Pants (reusable underwear)
 AB_BRANDS = {"Sunkiss", "Little for Big", "Rearz", "Tykables", "ABUniverse", "LNGU", "Kiddo", "Crinklz", "Cuddlz",
              "Landofgenie", "Bambino"}
@@ -331,6 +332,17 @@ def to_row(it, brand, today):
         if not cat:
             return None
     line, title_var = S.split_title("Amazon", p, brand)
+    # sizes and 'Unisex'/'Bulk' are not part of a product name ('ULTRA BRIEFS LARGE UNISEX BULK' -> 'Ultra')
+    sz = r"(?:\d?x{0,3}-?|extra[\s-]*)(?:small|medium|large)|x{1,3}l|[2-5]xl|xs|regular"
+    l2 = re.sub(r"\b(?:XX|X)?[SML]\s*/\s*(?:XX|X)?[SML]\b|\s(?:XX|X)?[SML]\s*/?\s*$", " ", line)   # 'L/XL', 'S/M', a trailing 'L/'
+    l2 = re.sub(r"\b(?:size\s*)?(?:" + sz + r")(?:\s*[/-]\s*(?:" + sz + r"))*\b|\bsize\s*\d\b|\b(?:unisex|bulk)\b", " ", l2, flags=re.I)
+    l2 = re.sub(r"\s*/\s*(?=/|$)|^\s*/\s*|\s+-\s+(?=-|$)", " ", re.sub(r"\s+", " ", l2)).strip(" -,/")
+    l2 = re.sub(r"\s+", " ", re.sub(r"\s+/\s+", " / ", l2))
+    l2 = re.sub(r"^\s*size:?\s*$", "", l2, flags=re.I)
+    if re.search(r"[A-Za-z]{3}", l2):
+        line = l2
+    elif re.fullmatch(r"\s*size:?\b.*", line, re.I):   # the title had only a size where the name goes
+        line = {"pullup": "Underwear", "booster": "Booster Pads"}.get(cat, "Briefs")
     line = LINE_BY_ASIN.get(it["asin"], line)
     pn, pn_colour = print_name(title) if brand in AB_BRANDS else (None, None)
     if pn:
@@ -427,7 +439,7 @@ def main(out, prev):
 
     def known_cap(r):
         """Capacity from the title, another store or CAP_BY_SIZE: these come before reading the product page."""
-        if r.get("cap") or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]):
+        if r.get("cap") or CAP_BY_SIZE.get(r["pid"], {}).get(r["size"]) or S.brand_site_caps(r["brand"]).get(r["pid"]):
             return True
         return bool(by_pid.get(r["pid"]) and ((by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])))
 
@@ -592,7 +604,7 @@ def main(out, prev):
         sized = CAP_BY_SIZE.get(r["pid"], {}).get(r["size"])
         if sized:
             r["cap"] = sized
-        r["cap"] = r["cap"] or (qcache.get(r["asin"]) or {}).get("cap")
+        r["cap"] = r["cap"] or S.brand_site_caps(r["brand"]).get(r["pid"]) or (qcache.get(r["asin"]) or {}).get("cap")
         if r["cat"] == "booster" and not r.get("dims"):
             r["dims"] = (qcache.get(r["asin"]) or {}).get("dims")   # product page, last
         r["ppd"] = round(r["price"] / r["qty"], 3) if r["qty"] else None

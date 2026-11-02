@@ -96,6 +96,7 @@ QUERIES = [
     "depend underwear", "prevail briefs", "attends briefs", "abena abri-form", "tranquility briefs",
     "tranquility underwear", "forsite health briefs", "incontrol bedry", "molicare briefs",
     "fitright briefs", "betterdry diapers", "because underwear incontinence", "booster pads adult diaper",
+    "goodnites bedwetting underwear",   # Huggies GoodNites, pull-ups tab (owner 2026-11-02)
 ]
 # Amazon brand names -> tracker brand (on top of scraper.BRANDS)
 EXTRA_BRANDS = {"sunkiss": "Sunkiss", "littleforbig": "Little for Big", "little for big": "Little for Big",
@@ -425,6 +426,10 @@ def to_row(it, brand, today):
     elif re.fullmatch(r"\s*size:?\b.*", line, re.I):   # the title had only a size where the name goes
         line = {"pullup": "Underwear", "booster": "Booster Pads"}.get(cat, "Briefs")
     line = LINE_BY_ASIN.get(it["asin"], line)
+    if brand == "GoodNites":
+        line = "Nighttime Underwear"
+        g = re.search(r"\b(boys|girls)\b", title, re.I)
+        title_var = g.group(1).title() if g else title_var
     pn, pn_colour = print_name(title) if brand in AB_BRANDS else (None, None)
     if pn:
         p2 = dict(p, title=f"{brand} {pn}")
@@ -605,6 +610,8 @@ def main(out, prev):
             if it["price"] is None:
                 continue
             b = tracked_brand(it["brand"], known)
+            if re.search(r"good\s?nites", it["title"], re.I):   # Amazon labels these 'Huggies' or 'Goodnites'
+                b = "GoodNites"
             if not b:
                 continue
             r = to_row(it, b, today)

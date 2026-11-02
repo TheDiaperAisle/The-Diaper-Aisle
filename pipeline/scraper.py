@@ -19,8 +19,11 @@ STORES = [
     # Rearz Canada is a BigCommerce store (rearz.ca redirects to ca.rearz.ca, which serves CAD prices to any
     # location). It has no /products.json, so it is read from its sitemap, product pages and option-price lookups.
     ("Rearz", "https://ca.rearz.ca"),
+    # Well.ca: only Huggies GoodNites (owner 2026-11-02), read from its search and product pages
+    ("Well.ca", "https://well.ca"),
 ]
-VIA = {"Rearz": "bigcommerce"}
+VIA = {"Rearz": "bigcommerce", "Well.ca": "wellca"}
+WELL_SEARCHES = ["goodnites"]   # words matched in Well.ca product addresses
 UA = {"User-Agent": "Mozilla/5.0 (DipAisleTracker; price research)"}
 
 
@@ -176,7 +179,57 @@ def fetch_bigcommerce(base, delay=0.25):
     return out
 
 
+def fetch_wellca(base, delay=0.5):
+    """Well.ca GoodNites products as Shopify-shaped dicts, one per size option. Each product page lists every size
+    option with its own price and stock: 'Size XL - 9QTY - 95-140+lbs', data-sale-price, data-status="In Stock"."""
+    # product list from Well.ca's sitemap (its robots.txt asks crawlers not to use the search pages)
+    idx = _get(f"{base}/sitemap_wellca_index.xml")
+    urls = set()
+    for sm in re.findall(r"<loc>([^<]+)</loc>", idx):
+        if "product" in sm.lower() and "_fr" not in sm.lower():
+            x = _get(sm, timeout=90)
+            for q in WELL_SEARCHES:
+                urls |= set(re.findall(r"<loc>(https://well\.ca/products/[^<]*" + re.escape(q) + r"[^<]*_\d+\.html)</loc>", x, re.I))
+    out, seen = [], set()
+    for u in sorted(urls):
+        if not re.search(r"goodnites", u, re.I) or re.search(r"bed-?mat", u, re.I):
+            continue
+        raw = _get(u)
+        time.sleep(delay)
+        name = html.unescape((re.search(r'"name"\s*:\s*"([^"]+)"', raw) or re.search(r"<title>([^<|]+)", raw)).group(1)).strip()
+        style = "Girls" if re.search(r"\bgirls?\b", name, re.I) else "Boys" if re.search(r"\bboys?\b", name, re.I) else None
+        img = (re.search(r'<meta property="og:image" content="([^"]+)"', raw) or [None, None])[1]
+        desc = html.unescape((re.search(r'<meta property="og:description" content="([^"]*)"', raw) or [None, ""])[1])
+        for m in re.finditer(r"<option\b[^>]*\bdata-name=[^>]*>", raw):
+            o = dict(re.findall(r'data-([\w-]+)="([^"]*)"', m.group(0)))
+            oid = o.get("id")
+            if not oid or oid in seen:
+                continue
+            seen.add(oid)
+            lab = html.unescape(o.get("name", ""))   # 'Size XL - 9QTY - 95-140+lbs'
+            sz = re.match(r"\s*(?:size\s+)?(.+?)\s+-\s+\d", lab, re.I)   # 'Size XL - 9QTY ...', 'S/M - 14QTY ...'
+            sz = sz.group(1) if sz else ""
+            q = re.search(r"(\d+)\s*(?:qty|count|ct)\b", lab, re.I)
+            try:
+                price = float(o["sale-price"] if o.get("on-sale") == "1" and o.get("sale-price") else o.get("price"))
+            except (TypeError, ValueError):
+                continue
+            pkg = f"Bag ({q.group(1)})" if q else "Bag"
+            opts = [{"name": "Size", "values": [sz]}, {"name": "Pack", "values": [pkg]}] + ([{"name": "Colour", "values": [style]}] if style else [])
+            v = {"id": oid, "price": f"{price:.2f}", "available": o.get("status", "").lower().startswith("in stock"),
+                 "option1": sz, "option2": pkg, "option3": style}
+            out.append({"title": "Huggies GoodNites Nighttime Underwear", "handle": f"goodnites-{oid}", "vendor": "Huggies",
+                        "product_type": "Bedwetting Underwear", "tags": [], "body_html": desc,
+                        "images": [{"src": img}] if img else [], "options": opts, "variants": [v],
+                        "_url": o.get("url") or u})
+    if not out:
+        raise RuntimeError("no GoodNites products found on Well.ca")
+    return out
+
+
 def fetch_store(base, via=None):
+    if via == "wellca":
+        return fetch_wellca(base)
     if via == "bigcommerce":
         return fetch_bigcommerce(base)
     out, page = [], 1
@@ -201,7 +254,7 @@ EXCLUDE = re.compile(r"\b(pad|pads|underpad|booster|liner|washable|reusable|body
                      r"training pants?|cover|covers|pail|refill|cream|bag of bags|diaper bags|bottle|pacifier|"
                      r"bib|socks?|bath|mat|strips|panty|carole martin|beanie|gift card|swim|t-?shirt|sticker|exercise|pulley|stuffer|insert|mattress|"
                      r"threaded armou?r|all[- ]in[- ]one cloth|diaper fasteners?|snappi)\b", re.I)
-DIAPER_WORD = re.compile(r"diaper|brief|pull[- ]?(up|on)s?|protective underwear|absorbent underwear|"
+DIAPER_WORD = re.compile(r"diaper|brief|pull[- ]?(up|on)s?|protective underwear|absorbent underwear|bedwetting underwear|nighttime underwear|"
                          r"disposable underwear|couche|tena slip|slip (?:brief|active|maxi|super|plus|junior)|breezers", re.I)
 
 
@@ -501,6 +554,7 @@ def absorbency_cat(p, desc):
 
 
 BRANDS = [  # canonical name, regex matched at the start of the title (after an optional "SAMPLE")
+    ("GoodNites", r"(?:huggies\s+)?good\s?nites\b"),
     ("ABUniverse", r"abu(?:niverse)?\b"), ("Abena", r"abena\b|abri[- ]?(?:form|flex|let|san)"),
     ("AMG", r"amg\b"), ("Attends", r"attends\b"), ("Because", r"because(?: market)?\b"),
     ("BetterDry", r"better ?dry\b"), ("Comfees", r"comfees\b"), ("Comfykinz", r"comfykinz\b"),

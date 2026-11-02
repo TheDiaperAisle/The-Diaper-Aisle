@@ -14,3 +14,7 @@ Applied on the tracker as the "Delivered" column for every package (samples, bag
 Impact on case unit prices (Oct catalogue, shipping to Ontario): Healthwick adds a median $0.21/unit (+8%); MyDips $0.33/unit (+8%); AgeComfort and Rearz cases are almost all over their free-shipping minimums, so $0. To BC: Healthwick +$0.32 (+12%), MyDips +$0.63 (+15%).
 
 To verify the policy-only stores at checkout, add `www.agecomfort.com` and `mydips.store` to the network allowlist; the cart estimate script is the same one used for Healthwick/ABUniverse (`/cart/add.js` then `/cart/shipping_rates.json`).
+
+
+## Well.ca (added 2026-11-02)
+Free shipping on orders $35+ (before tax) to most Canadian addresses. Below $35, and to remote/air-stage areas, the fee is shown at checkout (not published), so the tracker shows the price before shipping with a "+ shipping" tag. Source: https://well.ca/shipping

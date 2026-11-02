@@ -45,6 +45,18 @@ Run everything from the repo root. Needs Python 3 with Pillow: `python3 -m pip i
    Otherwise send a push notification if a push tool is available, with `banner` as the first sentence and then `report`, then send the emails (next section).
 9. Final reply: the report, plus one line on which emails went out.
 
+## Walmart check (about every 2 weeks, from a session on the owner's computer)
+Walmart.ca cannot be read from the cloud run. In a local session with Claude in Chrome (owner request, 2026-11-02):
+1. `git pull --ff-only origin main`.
+2. In the owner's Chrome, open each Walmart GoodNites XL/XXL product page listed in `pipeline/manual_prices.json` (and any new
+   ones the owner names; search walmart.ca for "goodnites" and keep only XL and XXL). Read the price (CAD, before tax, sold by
+   Walmart) and whether it can be added to the cart. Normal page views only: if Walmart shows a "press and hold" or other
+   human-verification check, stop and ask the owner to do it; never try to get past it.
+3. Update each item's `price`, `in_stock` and `checked` (today) in `pipeline/manual_prices.json`; add new items with id (the
+   number at the end of the URL), url (without tracking parameters), title "Huggies GoodNites Nighttime Underwear",
+   variant Boys/Girls, size, count.
+4. Commit only that file ("Walmart prices <YYYY-MM-DD>") and push to main. The next daily run shows the prices.
+
 ## Owner rules for the report (2026-10-30)
 - When asking the owner to check or clarify a product, include a link to its product page at each store involved (owner 2026-10-31).
 - Mention only what changed and what is broken. No "everything worked" lines, no row counts, no "data published" line.

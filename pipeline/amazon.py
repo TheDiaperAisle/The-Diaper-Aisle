@@ -510,7 +510,14 @@ def main(out, prev):
     lookups = 0
     for a in pending[:reserve if key else 0]:
         try:
-            raw, used = fetch_page(a, key)
+            for wait in (20, 40, 0):   # Firecrawl rate limit (HTTP 429): wait and try again
+                try:
+                    raw, used = fetch_page(a, key)
+                    break
+                except Exception as e:  # noqa
+                    if "429" not in str(e) or not wait:
+                        raise
+                    time.sleep(wait)
         except Exception as e:  # noqa
             errors.append(f"page {a}: {e}")
             if "402" in str(e):
@@ -530,7 +537,9 @@ def main(out, prev):
     if errors:
         status["errors"] = errors[:5]
     for r in amz:
-        n = (qcache.get(r["asin"]) or {}).get("n") or guess[r["asin"]][0]
+        # a clear title count wins: the page's 'Number of Items' sometimes counts bags ('8' for Case/96 of 8 x 12)
+        q, sure = guess[r["asin"]]
+        n = q if sure else ((qcache.get(r["asin"]) or {}).get("n") or q)
         r["qty"], r["pkg"] = n, amazon_pkg(r["name"], n)
         if r["size"] == "One size" and (qcache.get(r["asin"]) or {}).get("size"):
             r["size"] = qcache[r["asin"]]["size"]

@@ -604,8 +604,10 @@ $("#imgdlg").addEventListener("click", e => { if(e.target.id === "imgdlg") e.tar
 addEventListener("scroll", hideZoom, {passive:true});
 
 // data (static files published to data/ by the daily run)
-const V = "?v=" + Math.floor(Date.now()/3.6e6);
-async function getJSON(p){ const r = await fetch("data/" + p + V); if(!r.ok) throw new Error(p + " " + r.status); return r.json(); }
+// meta.json is always fetched fresh; every other file is tagged with the run it belongs to, so a new run is never
+// hidden behind a cached copy of the last one (owner 2026-11-02)
+let V = "?v=" + Date.now();
+async function getJSON(p){ const r = await fetch("data/" + p + V, p === "meta.json" ? {cache: "no-store"} : {}); if(!r.ok) throw new Error(p + " " + r.status); const d = await r.json(); if(p === "meta.json" && d.lastRun) V = "?v=" + encodeURIComponent(d.lastRun); return d; }
 async function loadSet(name, n){ return Promise.all([...Array(n||0).keys()].map(i => getJSON(name + "-" + i + ".json"))); }
 (async () => {
   try{

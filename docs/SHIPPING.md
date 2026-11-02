@@ -18,3 +18,6 @@ To verify the policy-only stores at checkout, add `www.agecomfort.com` and `mydi
 
 ## Well.ca (added 2026-11-02)
 Free shipping on orders $35+ (before tax) to most Canadian addresses. Below $35, and to remote/air-stage areas, the fee is shown at checkout (not published), so the tracker shows the price before shipping with a "+ shipping" tag. Source: https://well.ca/shipping
+
+## Walmart (added 2026-11-02, prices entered by hand)
+Assumed: free shipping on orders $35+ for items sold by Walmart; below $35 the fee is shown at checkout. Not verified yet.

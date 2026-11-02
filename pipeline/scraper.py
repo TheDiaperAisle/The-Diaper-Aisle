@@ -21,8 +21,13 @@ STORES = [
     ("Rearz", "https://ca.rearz.ca"),
     # Well.ca: only Huggies GoodNites (owner 2026-11-02), read from its search and product pages
     ("Well.ca", "https://well.ca"),
+    # Walmart.ca blocks automated reading, so its prices are entered by hand from the owner's checks
+    # (pipeline/manual_prices.json, owner 2026-11-02, about every 2 weeks)
+    ("Walmart", "https://www.walmart.ca"),
 ]
-VIA = {"Rearz": "bigcommerce", "Well.ca": "wellca"}
+VIA = {"Rearz": "bigcommerce", "Well.ca": "wellca", "Walmart": "manual"}
+MANUAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manual_prices.json")
+MANUAL_MAX_AGE = 21   # days: a hand-entered price older than this is dropped rather than shown as current
 WELL_SEARCHES = ["goodnites"]   # words matched in Well.ca product addresses
 # GoodNites are youth sizes; only XL and XXL fit adults (owner 2026-11-02), at every store
 GOODNITES_SIZES = {"XL", "XXL"}
@@ -231,7 +236,33 @@ def fetch_wellca(base, delay=0.5):
     return out
 
 
-def fetch_store(base, via=None):
+def fetch_manual(store):
+    """Hand-entered listings for a store that cannot be read automatically, as Shopify-shaped dicts.
+    manual_prices.json: {"Walmart": {"items": [{"id", "url", "title", "size", "count", "price", "in_stock", "checked",
+    "variant" (optional), "image" (optional)}]}}"""
+    today = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-4))).date()
+    items = (json.load(open(MANUAL_FILE)).get(store) or {}).get("items", []) if os.path.exists(MANUAL_FILE) else []
+    out = []
+    for it in items:
+        if (today - datetime.date.fromisoformat(it["checked"])).days > MANUAL_MAX_AGE:
+            continue
+        pkg = f"Bag ({it['count']})" if it.get("count") else "Bag"
+        opts = [{"name": "Size", "values": [it["size"]]}, {"name": "Pack", "values": [pkg]}]
+        v = {"id": it["id"], "price": f"{float(it['price']):.2f}", "available": bool(it.get("in_stock", True)),
+             "option1": it["size"], "option2": pkg}
+        if it.get("variant"):
+            opts.append({"name": "Colour", "values": [it["variant"]]})
+            v["option3"] = it["variant"]
+        out.append({"title": it["title"], "handle": str(it["id"]), "vendor": it.get("brand", ""), "tags": [],
+                    "product_type": it.get("type", ""), "body_html": it.get("description", ""),
+                    "images": [{"src": it["image"]}] if it.get("image") else [], "options": opts, "variants": [v],
+                    "_url": it["url"], "_checked": it["checked"]})
+    return out
+
+
+def fetch_store(base, via=None, store=None):
+    if via == "manual":
+        return fetch_manual(store)
     if via == "wellca":
         return fetch_wellca(base)
     if via == "bigcommerce":
@@ -1213,7 +1244,7 @@ def main():
     fetched = {}
     for store, base in STORES:
         try:
-            fetched[store] = fetch_store(base, VIA.get(store))
+            fetched[store] = fetch_store(base, VIA.get(store), store)
         except Exception as e:  # noqa
             status[store] = {"ok": False, "error": str(e)[:200]}
     learn_casing(fetched)
@@ -1222,6 +1253,10 @@ def main():
             continue
         try:
             rows = parse_store(store, base, fetched[store])
+            if VIA.get(store) == "manual":   # hand-entered: show when the price was checked
+                chk = {f"{store}|{p['handle']}": p["_checked"] for p in fetched[store]}
+                for r in rows:
+                    r["checked"] = chk.get(r["t"])
             all_rows += rows
             status[store] = {"ok": True, "products": len(fetched[store]), "rows": len(rows)}
         except Exception as e:  # noqa

@@ -1,0 +1,6 @@
+{
+ "_how": "Hand-entered prices for stores that cannot be read automatically (Walmart.ca blocks automated reading). The owner checks them about every 2 weeks; an item whose 'checked' date is more than 21 days old is dropped. Item: id (from the product URL), url, title, variant (optional), size, count, price (CAD, before tax), in_stock, checked (YYYY-MM-DD).",
+ "Walmart": {
+  "items": []
+ }
+}

@@ -427,6 +427,8 @@ def to_row(it, brand, today):
         line = {"pullup": "Underwear", "booster": "Booster Pads"}.get(cat, "Briefs")
     line = LINE_BY_ASIN.get(it["asin"], line)
     if brand == "GoodNites":
+        if amazon_size(title) not in S.GOODNITES_SIZES:
+            return None   # youth sizes too small for adults (owner 2026-11-02)
         line = "Nighttime Underwear"
         g = re.search(r"\b(boys|girls)\b", title, re.I)
         title_var = g.group(1).title() if g else title_var

@@ -24,6 +24,8 @@ STORES = [
 ]
 VIA = {"Rearz": "bigcommerce", "Well.ca": "wellca"}
 WELL_SEARCHES = ["goodnites"]   # words matched in Well.ca product addresses
+# GoodNites are youth sizes; only XL and XXL fit adults (owner 2026-11-02), at every store
+GOODNITES_SIZES = {"XL", "XXL"}
 UA = {"User-Agent": "Mozilla/5.0 (DipAisleTracker; price research)"}
 
 
@@ -209,6 +211,8 @@ def fetch_wellca(base, delay=0.5):
             lab = html.unescape(o.get("name", ""))   # 'Size XL - 9QTY - 95-140+lbs'
             sz = re.match(r"\s*(?:size\s+)?(.+?)\s+-\s+\d", lab, re.I)   # 'Size XL - 9QTY ...', 'S/M - 14QTY ...'
             sz = sz.group(1) if sz else ""
+            if size_of(sz) not in GOODNITES_SIZES:
+                continue
             q = re.search(r"(\d+)\s*(?:qty|count|ct)\b", lab, re.I)
             try:
                 price = float(o["sale-price"] if o.get("on-sale") == "1" and o.get("sale-price") else o.get("price"))

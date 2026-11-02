@@ -59,6 +59,10 @@ CAP_BY_SIZE = {
     # Abena Slip Flexi-Fit Premium M-L4: 'Absorbs up to 115 fl oz' in the Amazon description (B0CP6JDR16, owner 2026-10-31)
     "diaper|abena|4 fit flexi level premium slip": {"M/L": 3400},
 }
+# Owner-checked listings (2026-11-01): piece counts the listing does not state, and listings that are not disposable diapers
+QTY_BY_ASIN = {"B0098798ZY": 12,    # Tranquility Premium DayTime Pull-On Underwear XXL ('XXL 12')
+               "B0C8TPWV3T": 14}    # MoliCare Slip Maxi 9 Drops, M
+NOT_TRACKED = {"B0GRTJZR84", "B0GRT3VWJZ"}   # Landofgenie Women's Cartoon Print Underwear Potty Pants (reusable underwear)
 AB_BRANDS = {"Sunkiss", "Little for Big", "Rearz", "Tykables", "ABUniverse", "LNGU", "Kiddo", "Crinklz", "Cuddlz",
              "Landofgenie", "Bambino"}
 GENERIC = {"adult", "printed", "diaper", "diapers", "brief", "briefs", "incontinence", "underwear", "unisex",
@@ -297,6 +301,8 @@ def page_size(raw):
 
 
 def to_row(it, brand, today):
+    if it["asin"] in NOT_TRACKED:
+        return None
     title = re.sub(r"\bMd\b", "Medium", re.sub(r"\bLg\b", "Large", re.sub(r"\bSm\b", "Small", it["title"])))
     name = name_from_title(title)
     p = {"title": f"{brand} {name}", "handle": it["asin"], "vendor": brand, "product_type": "", "tags": [],
@@ -541,7 +547,7 @@ def main(out, prev):
     for r in amz:
         # a clear title count wins: the page's 'Number of Items' sometimes counts bags ('8' for Case/96 of 8 x 12)
         q, sure = guess[r["asin"]]
-        n = q if sure else ((qcache.get(r["asin"]) or {}).get("n") or q)
+        n = QTY_BY_ASIN.get(r["asin"]) or (q if sure else ((qcache.get(r["asin"]) or {}).get("n") or q))
         r["qty"], r["pkg"] = n, amazon_pkg(r["name"], n)
         if r["size"] == "One size" and (qcache.get(r["asin"]) or {}).get("size"):
             r["size"] = qcache[r["asin"]]["size"]

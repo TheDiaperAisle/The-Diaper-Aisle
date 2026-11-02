@@ -350,6 +350,14 @@ def qty_table(desc):
         toks = SIZE_TOKEN.findall(desc[max(0, m.start() - 140):m.start()])
         if toks:
             table.setdefault("value|" + (size_of("XXL" if toks[-1] == "2X" else toks[-1]) or toks[-1]), (int(m.group(1)), int(m.group(1))))
+    # one 'N bags per case' for the whole product with per-size pack counts (Rearz: '24 per pack ... 3 bags per case')
+    words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "eight": 8}
+    mc = re.search(r"\b(\d+|two|three|four|five|six|eight)\s+(?:bags|packs|packages)\s+(?:per|in a|to a)\s+case", desc, re.I)
+    if mc:
+        n = int(mc.group(1)) if mc.group(1).isdigit() else words[mc.group(1).lower()]
+        for k, (per, case) in list(table.items()):
+            if case is None and not k.startswith(("value|", "sample")):
+                table[k] = (per, per * n)
     m = re.search(r"sample (?:pack|bag)? ?(?:contains|consists of) (\d+)", desc, re.I)
     if m:
         table["sample"] = (int(m.group(1)), None)
@@ -610,7 +618,15 @@ KEY_ALIAS = {
     # Little for Big 'Little Beauty': Healthwick 'Little Beauty Cloth Back', Amazon '... Cloth Back Diaper - Little Beauty'
     # (owner 2026-11-01; 181 fl oz = 5353 mL, as at Healthwick)
     "diaper|little for big|beauty little": "diaper|little for big|back beauty cloth little",
+    "diaper|tena|european max slip": "diaper|tena|max slip",   # Rearz 'Tena Slip Maxi (European)' = TENA Slip Maxi (owner 2026-11-01)
     "diaper|little for big|abdry": "diaper|little for big|abdry white",   # Amazon '- ABDry White Diapers' (White read as the colour)   # Amazon 'Abri-Form Comfort Plastic-Backed'; all Abri-Form Comfort is plastic-backed   # Healthwick 'White Foil Comfort', same product (owner 2026-10-31)
+}
+
+# Owner-supplied pack counts the store does not state anywhere: (store, handle) -> (package, count)
+QTY_MANUAL = {
+    # AgeComfort 'ABRI-FORM PREMIUM ADULT BRIEFS XL4 EXTE' $135.99: owner's estimate (2026-11-01) of a case of 36 or 48;
+    # 36 = 3 bags of 12, like the L4 cases at AgeComfort and Healthwick ($3.78 each; 48 would make XL cheaper than L)
+    ("AgeComfort", "abri-form-premium-adult-briefs-xl4-exte"): ("Case", 36),
 }
 
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
@@ -618,6 +634,7 @@ LINE_NAME = {
     "diaper|abena|abri comfort form": "Abri-Form Comfort",
     "pullup|abena|3 abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (all-caps title)
     "diaper|little for big|back beauty cloth little": "Little Beauty",   # owner 2026-11-01
+    "diaper|tena|max slip": "Slip Maxi",   # Rearz 'Slip Maxi (European)' merged with TENA ProSkin Slip Maxi (owner 2026-11-01)
 }
 
 
@@ -934,6 +951,9 @@ def parse_store(store, base, products):
         qt = qty_table(desc)
         img = thumb(p["images"][0]["src"]) if p.get("images") else None
         prod_size = size_of(p["title"])  # e.g. 'TENA ProSkin Plus Small Brief'
+        if not prod_size:   # 'These briefs are size small: 52-86 cm' (AgeComfort TENA Slip Maxi)
+            md = re.search(r"\b(?:these|this)\s+\w+\s+(?:are|is)\s+(?:a\s+)?size\s+([\w/-]+(?:\s+large)?)", desc, re.I)
+            prod_size = size_of(md.group(1)) if md else None
         brand = brand_of(store, p)
         line, title_var = split_title(store, p, brand)
         roles = option_roles(p)
@@ -1001,6 +1021,8 @@ def parse_store(store, base, products):
                 if qty is None and pkg == "Sample" and re.match(r"\s*sample\b", p["title"], re.I) \
                         and not re.search(r"pack|bag|kit", p["title"], re.I):
                     qty = 1  # single-unit samples (e.g. AgeComfort "SAMPLE ..." listings)
+            if qty is None and (store, p["handle"]) in QTY_MANUAL:
+                pkg, qty = QTY_MANUAL[(store, p["handle"])]
             key = f"{store}|{p['handle']}|{size}|{pkg}|{qty}|{variant or '-'}"
             avail = bool(v.get("available"))
             row = rows.get(key)

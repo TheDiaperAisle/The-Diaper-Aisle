@@ -824,12 +824,13 @@ def main(out, prev):
             if thumb:
                 thumbs[r["t"]] = thumb
     # still none: the picture of the same product in the same colour (another pack size), else any of its pictures
+    # (any store: hand-entered Walmart listings have no picture of their own)
     pic = {}
-    for r in amz:
+    for r in amz + rows:
         if r["t"] in thumbs:
             pic.setdefault((r["pid"], r.get("variant")), thumbs[r["t"]])
             pic.setdefault((r["pid"], "*"), thumbs[r["t"]])
-    for r in amz:
+    for r in amz + rows:
         if r["t"] not in thumbs:
             t = pic.get((r["pid"], r.get("variant"))) or pic.get((r["pid"], "*"))
             if t:

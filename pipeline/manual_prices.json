@@ -1,6 +1,73 @@
 {
  "_how": "Hand-entered prices for stores that cannot be read automatically (Walmart.ca blocks automated reading). The owner checks them about every 2 weeks; an item whose 'checked' date is more than 21 days old is dropped. Item: id (from the product URL), url, title, variant (optional), size, count, price (CAD, before tax), in_stock, checked (YYYY-MM-DD).",
  "Walmart": {
-  "items": []
+  "items": [
+   {
+    "id": "6000207415768",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Boys-Nighttime-Bedwetting-Underwear-XL-95-120-lbs-28-Count-Select-for-More/6000207415768",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Boys",
+    "size": "XL",
+    "count": 28,
+    "price": 26.98,
+    "in_stock": true,
+    "checked": "2026-11-02"
+   },
+   {
+    "id": "6000207416237",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Girls-Nighttime-Bedwetting-Underwear-XL-95-120-lbs-28-Count-Select-for-More/6000207416237",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Girls",
+    "size": "XL",
+    "count": 28,
+    "price": 26.98,
+    "in_stock": true,
+    "checked": "2026-11-02"
+   },
+   {
+    "id": "6DK928QU8L7K",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Boys-Nighttime-Bedwetting-Underwear-Size-XL-95-120-lbs-38-Count/6DK928QU8L7K",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Boys",
+    "size": "XL",
+    "count": 38,
+    "price": 47.97,
+    "in_stock": true,
+    "checked": "2026-11-02"
+   },
+   {
+    "id": "6000208734789",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Boys-Nighttime-Bedwetting-Underwear-Size-XXL-120-165-lbs-24-Count/6000208734789",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Boys",
+    "size": "XXL",
+    "count": 24,
+    "price": 26.98,
+    "in_stock": true,
+    "checked": "2026-11-02"
+   },
+   {
+    "id": "6000208736190",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Girls-Nighttime-Bedwetting-Underwear-Size-XXL-120-165-lbs-24-Count/6000208736190",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Girls",
+    "size": "XXL",
+    "count": 24,
+    "price": 26.98,
+    "in_stock": true,
+    "checked": "2026-11-02"
+   },
+   {
+    "id": "6000208734744",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Girls-Nighttime-Underwear-Size-XXL-120-165-lbs-54-Ct-Select-for-More/6000208734744",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Girls",
+    "size": "XXL",
+    "count": 54,
+    "price": 68.97,
+    "in_stock": true,
+    "checked": "2026-11-02"
+   }
+  ]
  }
 }

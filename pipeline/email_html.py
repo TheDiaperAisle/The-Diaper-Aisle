@@ -87,6 +87,16 @@ def item_row(product, detail, store, right_html, sub=""):
     </td></tr>'''
 
 
+def delivered_html(c):
+    """delivered price per piece under a price change (Ontario, the tracker's default), owner 2026-11-03"""
+    if c.get("d_new") is None:
+        return ""
+    u = lambda x: f"${x:.{3 if x < 1 else 2}f}"
+    txt = (f'{u(c["d_new"])}/{c["one"]} + shipping' if c.get("ship_quoted")
+           else f'{u(c["d_new"])}/{c["one"]} delivered')
+    return f'<div style="font-size:12px;line-height:16px;color:{TEAL};padding-top:4px;white-space:nowrap;">{txt}</div>'
+
+
 def render(d, date, logo_src="cid:att0"):
     """logo_src: 'cid:att0' = the email's first attachment (LOGO_FILE, inline=true). Gmail rewrites it to the
     attachment's Content-ID; other src forms (cid:0, https://...) are stripped by the Gmail connector."""
@@ -142,7 +152,7 @@ def render(d, date, logo_src="cid:att0"):
             right = (f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(c["new"])}</div>'
                      f'<div style="font-size:13px;line-height:18px;color:{TEAL};"><s>{money(c["old"])}</s></div>'
                      f'<div style="font-size:12px;line-height:16px;font-weight:700;color:{colour};padding-top:2px;">'
-                     f'{pct} {"up" if is_up else "down"}</div>')
+                     f'{pct} {"up" if is_up else "down"}</div>' + delivered_html(c))
             rows += item_row(p, det, st, right)
         rows += more_row(len(changes) - MAX_ROWS)
         body.append(section("Price changes", len(changes), rows, BLUE))
@@ -193,8 +203,7 @@ def render(d, date, logo_src="cid:att0"):
 
   {"" if quiet else f"""<!-- banner -->
   <tr><td style="padding:28px 32px 0 32px;font-family:{FONT};">
-    <div style="font-size:20px;line-height:26px;font-weight:600;color:{INK};">{e(headline[:1].upper() + headline[1:])}.</div>
-    <div style="padding-top:16px;">{badge_row}</div>
+    <div>{badge_row}</div>
   </td></tr>"""}
 
   {"".join(body)}
@@ -210,7 +219,7 @@ def render(d, date, logo_src="cid:att0"):
 
   <!-- footer -->
   <tr><td style="background-color:{FROST};border-top:2px solid {MIST};padding:16px 32px;font-family:{FONT};font-size:12px;line-height:18px;color:{TEAL};text-align:center;">
-    Prices in CAD from Healthwick, ABUniverse, MyDips, AgeComfort and Rearz, checked every morning.<br>
+    Prices in CAD from Healthwick, ABUniverse, MyDips, AgeComfort, Rearz, Amazon and Well.ca, checked every morning, and Walmart, checked every two weeks. Delivered prices include shipping to Ontario.<br>
     <a href="{TRACKER}" style="color:{TEAL};">{TRACKER}</a>
   </td></tr>
 </table>

@@ -40,6 +40,48 @@ def label(r):
     return f"{name} ({extra}) @ {r['store']}"
 
 
+# Delivered price per piece, as the tracker shows it (owner 2026-11-03: price changes include it). Shipping rules come
+# from the page itself (index.html, const SHIP) so the email and the tracker always agree; province = the page default.
+SHIP_PROV = "ON"
+ONE = {"diaper": "diaper", "pullup": "pull-up", "booster": "booster"}
+
+
+def _ship_rules():
+    try:
+        page = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "index.html"), encoding="utf-8").read()
+        return json.loads(re.search(r"const SHIP = (\{.*?\});\n", page).group(1))["stores"]
+    except Exception:  # noqa
+        return {}
+
+
+SHIP = _ship_rules()
+
+
+def delivered(r, price):
+    """-> (delivered price per piece, shipping quoted at checkout?) or (None, False) when it can't be worked out"""
+    rules = ((SHIP.get(r.get("store")) or {}).get("rules") or {}).get(SHIP_PROV)
+    if not rules or not r.get("qty"):
+        return None, False
+    fee = None
+    for frm, f in rules:
+        if price >= frm:
+            fee = f
+    return round((price + (fee or 0)) / r["qty"], 3), fee is None
+
+
+def unit(x):
+    return f"${x:.{3 if x < 1 else 2}f}"
+
+
+def delivered_note(c):
+    if c.get("d_new") is None:
+        return ""
+    if c.get("ship_quoted"):
+        return f" · {unit(c['d_new'])}/{c['one']} + shipping"
+    return f" · delivered {unit(c['d_old'])} → {unit(c['d_new'])}/{c['one']} ({SHIP_PROV})" if c.get("d_old") is not None and c["d_old"] != c["d_new"] \
+        else f" · delivered {unit(c['d_new'])}/{c['one']} ({SHIP_PROV})"
+
+
 def money(x):
     return f"${x:.2f}"
 
@@ -93,8 +135,11 @@ def main():
         if p.get("stale"):
             continue
         if r["price"] != p["price"]:
+            d_old, _ = delivered(r, p["price"])
+            d_new, quoted = delivered(r, r["price"])
             changes.append({"id": k, "item": label(r), "old": p["price"], "new": r["price"],
-                            "pct": round((r["price"] - p["price"]) / p["price"] * 100, 1) if p["price"] else None})
+                            "pct": round((r["price"] - p["price"]) / p["price"] * 100, 1) if p["price"] else None,
+                            "d_old": d_old, "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece")})
         if r.get("avail") and not p.get("avail"):
             back.append({"id": k, "item": label(r), "price": r["price"]})
         elif p.get("avail") and not r.get("avail"):
@@ -177,7 +222,7 @@ def main():
     lines = [banner]
     sections = [
         ("PROBLEMS", [f"- {i}" for i in issues]),
-        ("PRICE CHANGES", [f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" for c in changes]),
+        ("PRICE CHANGES", [f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c) for c in changes]),
         ("BACK IN STOCK", [f"- {x['item']}: {money(x['price'])}" for x in back]),
         ("NEWLY OUT OF STOCK", [f"- {x['item']}: {money(x['price'])}" for x in oos]),
         ("NEW LISTINGS", [f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") for x in new]),

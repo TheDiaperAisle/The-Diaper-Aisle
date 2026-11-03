@@ -262,8 +262,27 @@ def public_view(d):
     return p
 
 
-def subject(banner, date):
-    return f"Dip Aisle daily update – {date}: " + re.sub(r"^Dip Aisle:\s*", "", banner)
+def subject(view, date):
+    """Scoreboard subject (owner 2026-11-03): 'Diaper Aisle · Nov 3: 42 ↓ 29 ↑ · 3 sold out · 2 back · 16 new'.
+    Only non-zero parts; the owner edition adds '⚠ N to check' when there are problems."""
+    import datetime as _dt
+    ch = view.get("price_changes", [])
+    down = sum(1 for c in ch if c["new"] < c["old"])
+    up = sum(1 for c in ch if c["new"] > c["old"])
+    parts = []
+    if down or up:
+        parts.append(" ".join(x for x in ((f"{down} ↓" if down else ""), (f"{up} ↑" if up else "")) if x))
+    for key, word in (("out_of_stock", "sold out"), ("back_in_stock", "back"), ("new_listings", "new"), ("removed_listings", "removed")):
+        if view.get(key):
+            parts.append(f"{len(view[key])} {word}")
+    if view.get("issues"):
+        parts.append(f"⚠ {len(view['issues'])} to check")
+    try:
+        d = _dt.date.fromisoformat(date)
+        day = f"{d.strftime('%b')} {d.day}"
+    except ValueError:
+        day = date
+    return f"Diaper Aisle · {day}: " + (" · ".join(parts) if parts else "no changes")
 
 
 def build(changes_json, date, outdir):
@@ -282,7 +301,7 @@ def build(changes_json, date, outdir):
         base = os.path.join(outdir, name)
         open(base + ".html", "w").write(render(view, date))
         open(base + ".txt", "w").write((view.get("report") or "") + "\n\n" + TRACKER_LINE + "\n")
-        plan[name].update(subject=subject(view.get("banner", ""), date), html=base + ".html", text=base + ".txt")
+        plan[name].update(subject=subject(view, date), html=base + ".html", text=base + ".txt")
     json.dump(plan, open(os.path.join(outdir, "plan.json"), "w"), indent=1, ensure_ascii=False)
     return plan
 

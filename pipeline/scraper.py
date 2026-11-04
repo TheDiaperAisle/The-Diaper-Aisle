@@ -175,7 +175,9 @@ def fetch_bigcommerce(base, delay=0.25):
             raise RuntimeError(f"no option prices returned for {url}")
         out.append({
             "title": title, "handle": slug, "vendor": "Rearz", "tags": [],
-            "product_type": crumbs[-2] if len(crumbs) >= 2 else "", "body_html": desc,
+            "product_type": crumbs[-2] if len(crumbs) >= 2 else "",
+            # size options carry the fit range ('Medium (30" - 40")'); keep them for the waist reader
+            "body_html": desc + " Size guide: " + " ".join(l for _, n, vals in options if SIZE_OPT.search(n) for _, l in vals),
             "images": [{"src": img}] if img else [],
             "options": [{"name": n, "values": [_bc_pkg(l) for _, l in vals]} for _, n, vals in options[:3]],
             "variants": variants, "_url": url,
@@ -1052,6 +1054,79 @@ def page_description(base, handle):
     return text(m.group(1)) if m else ""
 
 
+# ---------- waist / hip fit range per size (owner 2026-11-04), always in inches ----------
+_WNUM = r"(\d{2,3}(?:\.\d{1,2})?)"
+_WIN = r"(?:\"|”|″|''|’’|in\b\.?|inch(?:es)?\b)"
+_WRANGE = re.compile(_WNUM + r"\s*(" + _WIN + r"|cm\b)?\s*(?:-|–|—|~|to)\s*" + _WNUM + r"\s*\+?\s*(" + _WIN + r"|cm\b)", re.I)
+_WLABEL = re.compile(r"(?<![\w/])(XXS|XS|S/M|M/L|L/XL|XL/2XL|XL/XXL|L/2XL|XXL|2XL|2X|3XL|3X|XXXL|4XL|XL|X-?Small|Extra[\s-]*Small|"
+                     r"Small|Medium|Regular|X-?Large|Extra[\s-]*Large|XX-?Large|Large|S|M|L)(?![\w/])", re.I)
+_WTABLE = re.compile(r"\bSize\s+((?:(?:XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL)\s+){2,})(?:Waist|Hips?|Fits?)[^0-9]{0,25}"
+                     r"((?:\d{2,3}\s*(?:-|–|to)\s*\d{2,3}\s*(?:cm|\"|in)?\s*){2,})", re.I)
+
+
+def _w(lo, hi, cm):
+    lo, hi = float(lo), float(hi)
+    if cm:
+        lo, hi = lo / 2.54, hi / 2.54
+    return (round(lo), round(hi)) if 12 <= lo < hi <= 110 and hi - lo >= 3 else None
+
+
+def waist_ranges(text):
+    """-> [(start, end, (lo, hi))] waist/hip ranges in inches; weights, volumes and dimensions are skipped"""
+    out = []
+    for m in _WRANGE.finditer(text or ""):
+        a, u1, b, u2 = m.groups()
+        if re.match(r"\s*(?:lb|kg|ml|oz|x\b)", text[m.end():m.end() + 6], re.I):
+            continue
+        w = _w(a, b, re.match(r"cm", u2 or u1 or "", re.I))
+        if w:
+            out.append((m.start(), m.end(), w))
+    return out
+
+
+def waist_by_size(text):
+    """{size: (lo, hi)} in inches. Lists ('S: Fits 24"-34" ... M: ...', 'Medium 70-100 cm (27.6-39.4 in)'): the first
+    range after a size label. Tables ('Size M L XL Waist 70 - 100 100 - 130 130 - 150', units from '(in cm)')."""
+    text = text or ""
+    res = {}
+    for m in _WTABLE.finditer(text):
+        labs = m.group(1).split()
+        cm = bool(re.search(r"\bcm\b", text[max(0, m.start() - 40):m.end()], re.I))
+        rs = re.findall(r"(\d{2,3})\s*(?:-|–|to)\s*(\d{2,3})", m.group(2))
+        if len(rs) == len(labs):
+            for lab, (a, b) in zip(labs, rs):
+                sz, w = size_of(lab), _w(a, b, cm)
+                if sz and w:
+                    res.setdefault(sz, w)
+    prev = 0
+    for s0, e0, w in waist_ranges(text):
+        back = text[max(prev, s0 - 45):s0]
+        prev = e0
+        labs = list(_WLABEL.finditer(back))
+        if labs:
+            sz = size_of(re.sub(r"extra[\s-]*large", "XL", labs[-1].group(1), flags=re.I))
+            if sz:
+                res.setdefault(sz, w)
+    return res
+
+
+def waist_for(by, size):
+    """the range for a size, joining the parts of 'S/M' or 'L/XL' when only the parts are listed"""
+    if size in by:
+        return by[size]
+    parts = [by.get(x) for x in _SPLIT.get(size, ())]
+    if parts and all(parts):
+        return (min(p[0] for p in parts), max(p[1] for p in parts))
+    return None
+
+
+def page_sizing(base, handle):
+    """the sizing part of a product page (ABUniverse: 'Sizing Choose your size ... M 31 - 36 in, L 37 - 42 in')"""
+    t = page_text(base, handle)
+    m = re.search(r"\b(?:sizing|size guide|size chart|choose your size)\b", t, re.I)
+    return t[m.start():m.start() + 700] if m else ""
+
+
 def page_capacity(base, handle, lo, hi):
     """Some stores (e.g. ABUniverse) keep capacity in a spec table on the product page rather than in the
     description: 'Absorbency *Capacity varies by size 6050ml'. Read the page and accept only an mL figure
@@ -1078,6 +1153,18 @@ def parse_store(store, base, products):
             p = dict(p, options=[dict(o, values=list(o.get("values", []))) for o in p.get("options", [])])
             add_case_variants(base, p)
         desc = text(p.get("body_html"))
+        # waist/hip fit per size: description, then the product page's sizing section (not for boosters)
+        w_by, w_one = {}, None
+        if cat != "booster":
+            w_by = waist_by_size(desc)
+            wr = {w for _, _, w in waist_ranges(desc)}
+            if not w_by and not wr and VIA.get(store) is None:
+                ps = page_sizing(base, p["handle"])
+                w_by = waist_by_size(ps)
+                wr = {w for _, _, w in waist_ranges(ps)}
+            w_one = next(iter(wr)) if len(wr) == 1 else None
+            if len({size_of(str(v.get(f"option{i}") or "")) for v in p["variants"] for i in (1, 2, 3)} - {None}) > 1:
+                w_one = None   # one range for a product sold in several sizes: which size it is for is unknown
         lo_hi = (100, 5000) if cat == "booster" else (CAP_MIN, 20000)
         cap = capacity_ml(desc, *lo_hi)
         if cap is None and VIA.get(store) is None:
@@ -1175,6 +1262,7 @@ def parse_store(store, base, products):
                 "cat": cat, "dims": size_dims.get(size) or (dims if (cat == "booster" and size == "One size") else None),
                 "style": style_of(p), "size": size, "pkg": pkg, "qty": qty, "price": price,
                 "cap": size_caps.get(size, cap), "cap_size": size in size_caps,
+                "waist": list(waist_for(w_by, size) or w_one or ()) or None,
                 "avail": avail, "img": img, "t": f"{store}|{p['handle']}",
                 "url": p.get("_url") or f"{base}/products/{p['handle']}?variant={v['id']}",
             }
@@ -1208,7 +1296,14 @@ def harmonise(rows):
         if not cap and not manual:   # then the brand's own website
             manual = brand_site_caps(rs[0]["brand"]).get(pid)
         dims = Counter(r["dims"] for r in rs if r["dims"])
+        waist = {}
+        for sz in {r["size"] for r in rs}:   # most common range a store gives for this product + size
+            cnt = Counter(tuple(r["waist"]) for r in rs if r["size"] == sz and r.get("waist"))
+            if cnt:
+                waist[sz] = list(cnt.most_common(1)[0][0])
         for r in rs:
+            if not r.get("waist") and waist.get(r["size"]):
+                r["waist"] = waist[r["size"]]
             c = size_cap.get(r["size"]) or (max(r2["cap"] for r2 in rs if r2["cap"]) if cap else None)
             r["line"] = line
             r["cap_src"] = "store" if r["cap"] == c and r["cap"] else ("other store" if c else ("manual" if manual else None))

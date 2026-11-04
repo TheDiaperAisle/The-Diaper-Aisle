@@ -394,6 +394,17 @@ def page_size(raw):
     return None
 
 
+def title_waist(title, size, cat):
+    """waist/hip fit in inches from the title: '(Large 36"-48")', '44"-58" Waist', 'Waist Size 44in-56in'"""
+    if cat == "booster":
+        return None
+    w = S.waist_for(S.waist_by_size(title), size)
+    if not w:
+        rs = {r for _, _, r in S.waist_ranges(title)}
+        w = next(iter(rs)) if len(rs) == 1 else None
+    return list(w) if w else None
+
+
 def to_row(it, brand, today):
     if it["asin"] in NOT_TRACKED:
         return None
@@ -457,7 +468,7 @@ def to_row(it, brand, today):
     return S.abena_fix_size({
         "id": f"Amazon|{it['asin']}|{size}|{pkg}|{qty}|{variant or '-'}", "store": "Amazon",
         "name": f"{brand} {title}", "brand": brand, "line": line, "pid": S.product_key(brand, line, cat),
-        "variant": variant, "cat": cat, "dims": dims, "style": S.style_of(p), "size": size, "pkg": pkg, "qty": qty,
+        "variant": variant, "cat": cat, "dims": dims, "waist": title_waist(title, size, cat), "style": S.style_of(p), "size": size, "pkg": pkg, "qty": qty,
         "price": it["price"], "cap": cap, "avail": True, "t": f"Amazon|{it['asin']}", "img": it["img"],
         "url": f"{BASE}/dp/{it['asin']}", "asin": it["asin"], "checked": today,
         "ab": brand in AB_BRANDS,
@@ -750,6 +761,10 @@ def main(out, prev):
         if o:
             r["line"] = o["line"]
             r["cap"] = r["cap"] or (by_ck.get((r["pid"], r["size"])) or {}).get("cap") or pid_cap.get(r["pid"])
+            if not r.get("waist") and r["cat"] != "booster":
+                ws = {tuple(x["waist"]) for x in rows if x["pid"] == r["pid"] and x["size"] == r["size"] and x.get("waist")}
+                if len(ws) == 1:
+                    r["waist"] = list(ws.pop())
             # booster dimensions: the other stores' figure when they all agree
             if r["cat"] == "booster" and not r.get("dims"):
                 r["dims"] = other_dims(r)

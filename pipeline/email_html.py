@@ -285,13 +285,58 @@ def subject(view, date):
     return f"Diaper Aisle · {day}: " + (" · ".join(parts) if parts else "no changes")
 
 
+# Price changes smaller than this (in %) are left out of the email as noise; the tracker keeps them (owner 2026-11-05)
+EMAIL_MIN_PCT = 1.0
+
+
+def drop_small_changes(d):
+    """The email's copy of the day: price changes under EMAIL_MIN_PCT removed from the list, the report text and the
+    banner's count."""
+    ch = d.get("price_changes", [])
+    keep = [c for c in ch if c.get("pct") is None or abs(c["pct"]) >= EMAIL_MIN_PCT]
+    if len(keep) == len(ch):
+        return d
+    d = dict(d, price_changes=keep)
+    up = sum(1 for c in keep if c["new"] > c["old"])
+    part = f"{len(keep)} price change{'s' if len(keep) != 1 else ''} ({up} up / {len(keep) - up} down)" if keep else ""
+    banner = re.sub(r"\d+ price changes? \([^()]*(?:\([^()]*\)[^()]*)*\)", part, d.get("banner", ""))
+    banner = re.sub(r":\s*;\s*", ": ", re.sub(r";\s*;", ";", banner)).replace(": .", ":").strip()
+    if re.fullmatch(r"Dip Aisle:\s*\.?", banner):
+        banner = "Dip Aisle: no price or stock changes today."
+    d["banner"] = banner
+    lines, out, i = (d.get("report") or "").split("\n"), [], 0
+    small = re.compile(r"\(([+-]?\d+(?:\.\d+)?)%\)")
+    while i < len(lines):
+        ln = lines[i]
+        if i == 0:
+            out.append(banner)
+        elif re.match(r"PRICE CHANGES \(\d+\)$", ln):
+            body = []
+            i += 1
+            while i < len(lines) and lines[i].startswith("- "):
+                m = small.search(lines[i])
+                if not m or abs(float(m.group(1))) >= EMAIL_MIN_PCT:
+                    body.append(lines[i])
+                i += 1
+            if body:
+                out += [f"PRICE CHANGES ({len(body)})"] + body
+            elif out and out[-1] == "":
+                out.pop()   # no section left: drop its blank separator too
+            continue
+        else:
+            out.append(ln)
+        i += 1
+    d["report"] = "\n".join(out)
+    return d
+
+
 def build(changes_json, date, outdir):
     """Write both editions and plan.json. An edition is only sent when it has something to say:
     full (owner) = any change or any problem; public (everyone else) = any price/stock/listing change.
     No email at all on a quiet day (owner 2026-10-30)."""
     import os
     os.makedirs(outdir, exist_ok=True)
-    d = json.load(open(changes_json))
+    d = drop_small_changes(json.load(open(changes_json)))
     plan = {}
     for name, view, send in (("owner", d, has_changes(d) or bool(d.get("issues"))),
                              ("public", public_view(d), has_changes(d))):

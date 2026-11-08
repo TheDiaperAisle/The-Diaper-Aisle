@@ -130,7 +130,9 @@ def main():
         if r.get("stale"):
             continue
         if not p:
-            new.append({"id": k, "item": label(r), "price": r["price"], "avail": r.get("avail")})
+            d_new, quoted = delivered(r, r["price"])
+            new.append({"id": k, "item": label(r), "price": r["price"], "avail": r.get("avail"), "url": r.get("url"),
+                        "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece")})
             continue
         if p.get("stale"):
             continue
@@ -139,14 +141,15 @@ def main():
             d_new, quoted = delivered(r, r["price"])
             changes.append({"id": k, "item": label(r), "old": p["price"], "new": r["price"],
                             "pct": round((r["price"] - p["price"]) / p["price"] * 100, 1) if p["price"] else None,
-                            "d_old": d_old, "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece")})
+                            "d_old": d_old, "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece"),
+                            "url": r.get("url")})
         if r.get("avail") and not p.get("avail"):
-            back.append({"id": k, "item": label(r), "price": r["price"]})
+            back.append({"id": k, "item": label(r), "price": r["price"], "url": r.get("url")})
         elif p.get("avail") and not r.get("avail"):
-            oos.append({"id": k, "item": label(r), "price": r["price"]})
+            oos.append({"id": k, "item": label(r), "price": r["price"], "url": r.get("url")})
     for k, p in prev.items():
         if k not in out and k not in renamed.values() and p["store"] not in stale_stores:
-            gone.append({"id": k, "item": label(p), "price": p["price"]})
+            gone.append({"id": k, "item": label(p), "price": p["price"], "url": p.get("url")})
     changes.sort(key=lambda c: c["pct"] or 0)
 
     # ----- data issues -----
@@ -225,7 +228,7 @@ def main():
         ("PRICE CHANGES", [f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c) for c in changes]),
         ("BACK IN STOCK", [f"- {x['item']}: {money(x['price'])}" for x in back]),
         ("NEWLY OUT OF STOCK", [f"- {x['item']}: {money(x['price'])}" for x in oos]),
-        ("NEW LISTINGS", [f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") for x in new]),
+        ("NEW LISTINGS", [f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") + delivered_note(x) for x in new]),
         ("REMOVED LISTINGS", [f"- {x['item']}: was {money(x['price'])}" for x in gone]),
     ]
     for title, items in sections:

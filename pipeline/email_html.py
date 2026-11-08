@@ -72,13 +72,15 @@ def section(title, count, rows_html, accent):
 </td></tr>'''
 
 
-def item_row(product, detail, store, right_html, sub=""):
+def item_row(product, detail, store, right_html, sub="", url=None):
+    name = (f'<a href="{e(url)}" style="color:{INK};text-decoration:underline;">{e(product)}</a>'
+            if url and url.startswith("http") else e(product))
     sub_html = f'<div style="font-size:13px;line-height:18px;color:{TEAL};">{sub}</div>' if sub else ""
     return f'''
     <tr><td style="padding:12px 0;border-bottom:1px solid {MIST};">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td style="font-family:{FONT};vertical-align:top;">
-          <div style="font-size:15px;line-height:20px;font-weight:600;color:{INK};">{e(product)}</div>
+          <div style="font-size:15px;line-height:20px;font-weight:600;color:{INK};">{name}</div>
           <div style="font-size:13px;line-height:18px;color:{TEAL};">{e(detail)}{" &middot; " if detail and store else ""}<b>{e(store)}</b></div>
           {sub_html}
         </td>
@@ -153,7 +155,7 @@ def render(d, date, logo_src="cid:att0"):
                      f'<div style="font-size:13px;line-height:18px;color:{TEAL};"><s>{money(c["old"])}</s></div>'
                      f'<div style="font-size:12px;line-height:16px;font-weight:700;color:{colour};padding-top:2px;">'
                      f'{pct} {"up" if is_up else "down"}</div>' + delivered_html(c))
-            rows += item_row(p, det, st, right)
+            rows += item_row(p, det, st, right, url=c.get("url"))
         rows += more_row(len(changes) - MAX_ROWS)
         body.append(section("Price changes", len(changes), rows, BLUE))
 
@@ -161,20 +163,22 @@ def render(d, date, logo_src="cid:att0"):
                                       ("Newly out of stock", oos, RED_DEEP, pill("Sold out", WHITE, RED_DEEP, RED_DEEP))):
         if items:
             rows = "".join(item_row(*split_item(x["item"]),
-                                    f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};padding-bottom:4px;">{money(x["price"])}</div>{tag}')
+                                    f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};padding-bottom:4px;">{money(x["price"])}</div>{tag}', url=x.get("url"))
                            for x in items[:MAX_ROWS]) + more_row(len(items) - MAX_ROWS)
             body.append(section(title, len(items), rows, accent))
 
     if new:
         rows = "".join(item_row(*split_item(x["item"]),
                                 f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["price"])}</div>'
-                                + ("" if x.get("avail", True) else f'<div style="padding-top:4px;">{pill("Sold out", WHITE, RED_DEEP, RED_DEEP)}</div>'))
+                                + delivered_html(x)
+                                + ("" if x.get("avail", True) else f'<div style="padding-top:4px;">{pill("Sold out", WHITE, RED_DEEP, RED_DEEP)}</div>'),
+                                url=x.get("url"))
                        for x in new[:MAX_ROWS]) + more_row(len(new) - MAX_ROWS)
         body.append(section("New listings", len(new), rows, TEAL))
 
     if gone:
         rows = "".join(item_row(*split_item(x["item"]),
-                                f'<div style="font-size:13px;line-height:18px;color:{TEAL};">was {money(x["price"])}</div>')
+                                f'<div style="font-size:13px;line-height:18px;color:{TEAL};">was {money(x["price"])}</div>', url=x.get("url"))
                        for x in gone[:MAX_ROWS]) + more_row(len(gone) - MAX_ROWS)
         body.append(section("Removed listings", len(gone), rows, PURPLE))
 
@@ -285,8 +289,9 @@ def subject(view, date):
     return f"Diaper Aisle · {day}: " + (" · ".join(parts) if parts else "no changes")
 
 
-# Price changes smaller than this (in %) are left out of the email as noise; the tracker keeps them (owner 2026-11-05)
-EMAIL_MIN_PCT = 1.0
+# Price changes smaller than this (in %) are left out of the email as noise; the tracker keeps them
+# (owner 2026-11-05: 1%, raised to 5% on 2026-11-08)
+EMAIL_MIN_PCT = 5.0
 
 
 def drop_small_changes(d):

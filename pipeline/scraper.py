@@ -329,6 +329,9 @@ def is_diaper(store, p):
         return pt == "Diapers"
     if store == "AgeComfort" and re.search(r"\bcloth\b", t, re.I):
         return False
+    if store == "Rearz" and re.search(r"\bunderwear\b", t, re.I):
+        # Rearz product_type is the page's breadcrumb, which can read 'Subscribe & Save' instead of the category
+        return True
     return bool(DIAPER_WORD.search(t) or re.search(r"diaper|couche", pt, re.I))
 
 

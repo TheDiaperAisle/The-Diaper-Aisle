@@ -16,6 +16,10 @@ from collections import Counter
 NO_CAP_BRANDS = {"TENA", "Prevail", "Attends"}  # capacity usually not advertised; never flag it as missing
 
 
+CAT_ORDER = {"diaper": 0, "pullup": 1, "booster": 2}
+CAT_NAMES = {"diaper": "DIAPERS", "pullup": "PULL-UPS", "booster": "BOOSTERS"}
+
+
 def load_rows(d):
     rows = {}
     for root, _, files in os.walk(d):
@@ -131,7 +135,7 @@ def main():
             continue
         if not p:
             d_new, quoted = delivered(r, r["price"])
-            new.append({"id": k, "item": label(r), "price": r["price"], "avail": r.get("avail"), "url": r.get("url"),
+            new.append({"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "avail": r.get("avail"), "url": r.get("url"),
                         "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece")})
             continue
         if p.get("stale"):
@@ -139,18 +143,21 @@ def main():
         if r["price"] != p["price"]:
             d_old, _ = delivered(r, p["price"])
             d_new, quoted = delivered(r, r["price"])
-            changes.append({"id": k, "item": label(r), "old": p["price"], "new": r["price"],
+            changes.append({"id": k, "cat": r.get("cat"), "item": label(r), "old": p["price"], "new": r["price"],
                             "pct": round((r["price"] - p["price"]) / p["price"] * 100, 1) if p["price"] else None,
                             "d_old": d_old, "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece"),
                             "url": r.get("url")})
         if r.get("avail") and not p.get("avail"):
-            back.append({"id": k, "item": label(r), "price": r["price"], "url": r.get("url")})
+            back.append({"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "url": r.get("url")})
         elif p.get("avail") and not r.get("avail"):
-            oos.append({"id": k, "item": label(r), "price": r["price"], "url": r.get("url")})
+            oos.append({"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "url": r.get("url")})
     for k, p in prev.items():
         if k not in out and k not in renamed.values() and p["store"] not in stale_stores:
-            gone.append({"id": k, "item": label(p), "price": p["price"], "url": p.get("url")})
-    changes.sort(key=lambda c: c["pct"] or 0)
+            gone.append({"id": k, "cat": p.get("cat"), "item": label(p), "price": p["price"], "url": p.get("url")})
+    # diapers, pull-ups and boosters are reported separately (owner 2026-11-10)
+    for lst in (changes, back, oos, new, gone):
+        lst.sort(key=lambda x: CAT_ORDER.get(x.get("cat"), len(CAT_ORDER)))
+    changes.sort(key=lambda c: (CAT_ORDER.get(c.get("cat"), len(CAT_ORDER)), c["pct"] or 0))
 
     # ----- data issues -----
     issues = []
@@ -223,14 +230,20 @@ def main():
     banner = "Dip Aisle: " + ("; ".join(head) if head else "no price or stock changes today") + "."
 
     lines = [banner]
-    sections = [
-        ("PROBLEMS", [f"- {i}" for i in issues]),
-        ("PRICE CHANGES", [f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c) for c in changes]),
-        ("BACK IN STOCK", [f"- {x['item']}: {money(x['price'])}" for x in back]),
-        ("NEWLY OUT OF STOCK", [f"- {x['item']}: {money(x['price'])}" for x in oos]),
-        ("NEW LISTINGS", [f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") + delivered_note(x) for x in new]),
-        ("REMOVED LISTINGS", [f"- {x['item']}: was {money(x['price'])}" for x in gone]),
-    ]
+    def by_cat(title, items, fmt):
+        """one text section per category: 'PRICE CHANGES · DIAPERS (n)'"""
+        out = []
+        for cat in list(CAT_NAMES) + [None]:
+            grp = [x for x in items if (x.get("cat") if x.get("cat") in CAT_NAMES else None) == cat]
+            if grp:
+                out.append((f"{title} · {CAT_NAMES.get(cat, 'OTHER')}", [fmt(x) for x in grp]))
+        return out
+    sections = [("PROBLEMS", [f"- {i}" for i in issues])]
+    sections += by_cat("PRICE CHANGES", changes, lambda c: f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c))
+    sections += by_cat("BACK IN STOCK", back, lambda x: f"- {x['item']}: {money(x['price'])}")
+    sections += by_cat("NEWLY OUT OF STOCK", oos, lambda x: f"- {x['item']}: {money(x['price'])}")
+    sections += by_cat("NEW LISTINGS", new, lambda x: f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") + delivered_note(x))
+    sections += by_cat("REMOVED LISTINGS", gone, lambda x: f"- {x['item']}: was {money(x['price'])}")
     for title, items in sections:
         if items:
             lines += ["", f"{title} ({len(items)})"] + items

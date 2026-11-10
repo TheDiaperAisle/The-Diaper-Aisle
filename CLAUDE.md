@@ -67,6 +67,7 @@ Walmart.ca cannot be read from the cloud run. In a local session with Claude in 
 ## Emails
 Build: `python3 pipeline/email_html.py --build changes.json <YYYY-MM-DD> ./email` and `base64 -w0 assets/tda-logo-email.png > logo.b64`.
 `email/plan.json` says, per edition, whether to send and gives the subject.
+Each section is split into Diapers, Pull-ups and Boosters (owner 2026-11-10): `changes.py` gives every item its `cat`, the text report has one section per category (`PRICE CHANGES · DIAPERS (n)`), the HTML has sub-headings. Problems are not split.
 Price changes under 5% are left out of both editions as noise (`EMAIL_MIN_PCT` in email_html.py, owner 2026-11-08); the tracker and its history keep them. Every product name links to its product page, and new listings show the delivered $/piece (ON) like price changes.
 
 - `owner` edition: full report including PROBLEMS. To nicholas.dumoulin2@gmail.com only. Goes out when anything changed or there is any problem.

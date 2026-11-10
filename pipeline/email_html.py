@@ -89,6 +89,25 @@ def item_row(product, detail, store, right_html, sub="", url=None):
     </td></tr>'''
 
 
+CAT_LABELS = (("diaper", "Diapers"), ("pullup", "Pull-ups"), ("booster", "Boosters"))
+
+
+def by_cat(items, render_row):
+    """rows grouped under Diapers / Pull-ups / Boosters sub-headings (MAX_ROWS per group). Older reports
+    without a category get one ungrouped list."""
+    if not any(x.get("cat") for x in items):
+        return "".join(render_row(x) for x in items[:MAX_ROWS]) + more_row(len(items) - MAX_ROWS)
+    out = ""
+    for cat, name in CAT_LABELS + ((None, "Other"),):
+        grp = [x for x in items if (x.get("cat") if x.get("cat") in dict(CAT_LABELS) else None) == cat]
+        if grp:
+            out += (f'''
+    <tr><td style="font-family:{FONT};font-size:12px;line-height:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+        color:{PURPLE};padding:14px 0 2px 0;border-bottom:1px solid {MIST};">{name}&nbsp;({len(grp)})</td></tr>'''
+                    + "".join(render_row(x) for x in grp[:MAX_ROWS]) + more_row(len(grp) - MAX_ROWS))
+    return out
+
+
 def delivered_html(c):
     """delivered price per piece under a price change (Ontario, the tracker's default), owner 2026-11-03"""
     if c.get("d_new") is None:
@@ -145,8 +164,7 @@ def render(d, date, logo_src="cid:att0"):
         body.append(section("Problems", len(issues), rows, RED_DEEP))
 
     if changes:
-        rows = ""
-        for c in changes[:MAX_ROWS]:
+        def change_row(c):
             p, det, st = split_item(c["item"])
             is_up = c["new"] > c["old"]
             pct = f'{"&#9650;" if is_up else "&#9660;"} {c["pct"]:+.1f}%' if c.get("pct") is not None else ""
@@ -155,31 +173,27 @@ def render(d, date, logo_src="cid:att0"):
                      f'<div style="font-size:13px;line-height:18px;color:{TEAL};"><s>{money(c["old"])}</s></div>'
                      f'<div style="font-size:12px;line-height:16px;font-weight:700;color:{colour};padding-top:2px;">'
                      f'{pct} {"up" if is_up else "down"}</div>' + delivered_html(c))
-            rows += item_row(p, det, st, right, url=c.get("url"))
-        rows += more_row(len(changes) - MAX_ROWS)
-        body.append(section("Price changes", len(changes), rows, BLUE))
+            return item_row(p, det, st, right, url=c.get("url"))
+        body.append(section("Price changes", len(changes), by_cat(changes, change_row), BLUE))
 
     for title, items, accent, tag in (("Back in stock", back, GREEN_DEEP, pill("In stock", WHITE, GREEN_DEEP, GREEN_DEEP)),
                                       ("Newly out of stock", oos, RED_DEEP, pill("Sold out", WHITE, RED_DEEP, RED_DEEP))):
         if items:
-            rows = "".join(item_row(*split_item(x["item"]),
-                                    f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};padding-bottom:4px;">{money(x["price"])}</div>{tag}', url=x.get("url"))
-                           for x in items[:MAX_ROWS]) + more_row(len(items) - MAX_ROWS)
+            rows = by_cat(items, lambda x, tag=tag: item_row(*split_item(x["item"]),
+                          f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};padding-bottom:4px;">{money(x["price"])}</div>{tag}', url=x.get("url")))
             body.append(section(title, len(items), rows, accent))
 
     if new:
-        rows = "".join(item_row(*split_item(x["item"]),
-                                f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["price"])}</div>'
-                                + delivered_html(x)
-                                + ("" if x.get("avail", True) else f'<div style="padding-top:4px;">{pill("Sold out", WHITE, RED_DEEP, RED_DEEP)}</div>'),
-                                url=x.get("url"))
-                       for x in new[:MAX_ROWS]) + more_row(len(new) - MAX_ROWS)
+        rows = by_cat(new, lambda x: item_row(*split_item(x["item"]),
+                      f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["price"])}</div>'
+                      + delivered_html(x)
+                      + ("" if x.get("avail", True) else f'<div style="padding-top:4px;">{pill("Sold out", WHITE, RED_DEEP, RED_DEEP)}</div>'),
+                      url=x.get("url")))
         body.append(section("New listings", len(new), rows, TEAL))
 
     if gone:
-        rows = "".join(item_row(*split_item(x["item"]),
-                                f'<div style="font-size:13px;line-height:18px;color:{TEAL};">was {money(x["price"])}</div>', url=x.get("url"))
-                       for x in gone[:MAX_ROWS]) + more_row(len(gone) - MAX_ROWS)
+        rows = by_cat(gone, lambda x: item_row(*split_item(x["item"]),
+                      f'<div style="font-size:13px;line-height:18px;color:{TEAL};">was {money(x["price"])}</div>', url=x.get("url")))
         body.append(section("Removed listings", len(gone), rows, PURPLE))
 
     out = f'''<!DOCTYPE html>
@@ -315,7 +329,8 @@ def drop_small_changes(d):
         ln = lines[i]
         if i == 0:
             out.append(banner)
-        elif re.match(r"PRICE CHANGES \(\d+\)$", ln):
+        elif re.match(r"PRICE CHANGES(?: · [A-Z-]+)? \(\d+\)$", ln):
+            head = ln.rsplit(" (", 1)[0]
             body = []
             i += 1
             while i < len(lines) and lines[i].startswith("- "):
@@ -324,7 +339,7 @@ def drop_small_changes(d):
                     body.append(lines[i])
                 i += 1
             if body:
-                out += [f"PRICE CHANGES ({len(body)})"] + body
+                out += [f"{head} ({len(body)})"] + body
             elif out and out[-1] == "":
                 out.pop()   # no section left: drop its blank separator too
             continue

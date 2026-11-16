@@ -8,3 +8,5 @@ firecrawl.key
 __pycache__/
 *.pyc
 .env
+my_deals.json
+my_profile.json

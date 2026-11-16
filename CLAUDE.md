@@ -14,10 +14,11 @@ Owner: Nick (nicholas.dumoulin2@gmail.com). The tracker covers adult disposable 
 - `pipeline/stock_check.py`: fixes AgeComfort and Healthwick backorders that the feeds report as in stock. Edits `out/` in place.
 - `pipeline/changes.py`: compares `prev/` with `out/` and prints the day's changes, problems, `banner` and `report` as JSON.
 - `pipeline/email_html.py`: builds the designed HTML email (owner and public editions) from `changes.json`.
+- `pipeline/my_deals.py`: the owner's personal deal matcher ("My deals", owner edition only). Reads `out/` and `prev/` plus the owner's private shopping profile, which the scheduled task's prompt supplies. The profile is never committed: write it to `../my_profile.json`, outside the repo.
 - `assets/tda-logo-email.png`: the email logo (inline attachment, `cid:att0`).
 - `docs/`: SHIPPING.md (shipping rules behind the page's `SHIP` constant) and the old Cowork runbook (history and owner decisions; background only).
 
-Scratch folders `out/`, `prev/`, `email/` and files `scrape.log`, `changes.json`, `logo.b64` are git-ignored. Never commit them.
+Scratch folders `out/`, `prev/`, `email/` and files `scrape.log`, `changes.json`, `logo.b64`, `my_deals.json` are git-ignored. Never commit them.
 
 ## Data layout (`data/`)
 - `catalog-0..N.json`: `{rows:[...], date}`. One row per product x colour/scent variant x size x package. `pid` groups the same product across stores, and `ck` = pid + size is the cross-store compare key. `cat` is `diaper`, `pullup` or `booster`. `bo: true` = backorder (feed says buyable, product page says out of stock).
@@ -41,7 +42,10 @@ Run everything from the repo root. Needs Python 3 with Pillow: `python3 -m pip i
    `git add -A data && git -c user.name="The Diaper Aisle" -c user.email="thediaperaisle@gmail.com" commit -m "Data for <YYYY-MM-DD>" && git push origin main`.
    Commit only `data/`. If the push fails, it's a problem: "Public site not updated: <reason>. Today's price points are lost from the history unless this is fixed before tomorrow's run."
 7. Report: `python3 pipeline/changes.py ./prev ./out ./scrape.log > changes.json`. If step 6 failed or any step could not run, add it to `issues` in changes.json and to the PROBLEMS section of `report` (and to `banner`'s "N problems to check" count).
-8. Notify the owner, but only when something changed or there is a problem. On a quiet day (no changes and no problems) send no push and no email.
+7b. My deals (owner only): if the task prompt gives the owner's deal profile, write it to `../my_profile.json` and run
+   `python3 pipeline/my_deals.py ./out ./prev ../my_profile.json > my_deals.json`. If it fails, add "My deals could not run: <error>" to `issues`
+   and skip it. Never commit the profile or `my_deals.json`, and never put deals in the public edition.
+8. Notify the owner, but only when something changed, there is a problem, or `email/plan.json` sends the owner edition (a new personal deal). On a quiet day (no changes, no problems, no new deal) send no push and no email.
    Otherwise send a push notification if a push tool is available, with `banner` as the first sentence and then `report`, then send the emails (next section).
 9. Final reply: the report, plus one line on which emails went out.
 
@@ -65,12 +69,12 @@ Walmart.ca cannot be read from the cloud run. In a local session with Claude in 
 - Missing capacities are NOT a problem by themselves (most TENA, Prevail and Attends products never state one). Failed capacity-page reads are expected (MyDips and AgeComfort geo-redirect cloud servers) and matter only when they cost a product its capacity.
 
 ## Emails
-Build: `python3 pipeline/email_html.py --build changes.json <YYYY-MM-DD> ./email` and `base64 -w0 assets/tda-logo-email.png > logo.b64`.
+Build: `python3 pipeline/email_html.py --build changes.json <YYYY-MM-DD> ./email my_deals.json` (leave off `my_deals.json` if step 7b did not run) and `base64 -w0 assets/tda-logo-email.png > logo.b64`.
 `email/plan.json` says, per edition, whether to send and gives the subject.
 Each section is split into Diapers, Pull-ups and Boosters (owner 2026-11-10): `changes.py` gives every item its `cat`, the text report has one section per category (`PRICE CHANGES · DIAPERS (n)`), the HTML has sub-headings. Problems are not split.
 Price changes under 5% are left out of both editions as noise (`EMAIL_MIN_PCT` in email_html.py, owner 2026-11-08); the tracker and its history keep them. Every product name links to its product page, and new listings show the delivered $/piece (ON) like price changes.
 
-- `owner` edition: full report including PROBLEMS. To nicholas.dumoulin2@gmail.com only. Goes out when anything changed or there is any problem.
+- `owner` edition: full report including PROBLEMS, with the "My deals" section first (owner 2026-11-16). To nicholas.dumoulin2@gmail.com only. Goes out when anything changed, there is any problem, or a deal is new today.
 - `public` edition: same report without problems. To the other recipients, all in To, one email. Goes out only when a price, stock or listing changed.
   Other recipients: drewlehman5@gmail.com
 - Quiet day (no changes and no problems): no email to anyone and no push notification (owner decision, 2026-10-31).

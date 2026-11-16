@@ -2,7 +2,8 @@
 """Dip Aisle: render the daily report (changes.py JSON) as an HTML email in The Diaper Aisle design system.
 
 Usage:  python3 changes.py ./prev ./out ./scrape.log > changes.json
-        python3 email_html.py --build changes.json YYYY-MM-DD OUTDIR   (daily run: writes both editions + plan.json)
+        python3 email_html.py --build changes.json YYYY-MM-DD OUTDIR [my_deals.json]   (daily run: both editions + plan.json;
+                 my_deals.json, if given, adds the owner-only "My deals" section)
         python3 email_html.py changes.json YYYY-MM-DD > email.html     (one HTML, full edition)
         python3 email_html.py --logo SOURCE.png      (builds tda-logo-email.png, ~13 KB)
   SOURCE = project file "The Dip Aisle Logos/03 - Print Resolutio Exports/DTA_Logo_Stroke_300DPI.png"
@@ -118,7 +119,50 @@ def delivered_html(c):
     return f'<div style="font-size:12px;line-height:16px;color:{TEAL};padding-top:4px;white-space:nowrap;">{txt}</div>'
 
 
-def render(d, date, logo_src="cid:att0"):
+def _rng(g):
+    a, b = g["range"]
+    return f"{a:,}+ mL" if b >= 99999 else (f"under {b + 1:,} mL" if a == 0 else f"{a:,}–{b:,} mL")
+
+
+def deals_section(deals):
+    """Owner edition only: the owner's personal deal matches (pipeline/my_deals.py)."""
+    names = {g["tier"]: g["name"] for g in deals["groups"]}
+    names.update({"light": "Light", "medium": "Medium", "heavy": "Heavy", "ultra": "Ultra heavy"})
+    fit_col = {"good": (GREEN, INK), "likely": (SKY, INK), "snug": (SKY, INK), "unknown": (FROST, TEAL),
+               "small": (WHITE, RED_DEEP), "large": (WHITE, RED_DEEP)}
+    rows = ""
+    for g in deals["groups"]:
+        b = g.get("benchmark")
+        bl = f' &middot; you pay {money(b["ppd"])} ({e(b["name"])})' if b else ""
+        rows += (f'''
+    <tr><td style="font-family:{FONT};font-size:12px;line-height:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+        color:{PURPLE};padding:14px 0 2px 0;border-bottom:1px solid {MIST};">{e(g["name"])} &middot; {_rng(g)}
+        <span style="text-transform:none;letter-spacing:0;font-weight:400;color:{TEAL};">{bl}</span></td></tr>''')
+        for x in g["deals"]:
+            tags = []
+            if x.get("fit"):
+                bg, fg = fit_col.get(x["fit"], (FROST, TEAL))
+                tags.append(pill(e(x["fit_label"]), bg, fg, fg if bg == WHITE else None))
+            if x.get("upgrade"):
+                tags.append(pill(f'More mL for less than your {e(names.get(x["beats"], x["beats"]).lower())}', GREEN, INK))
+            if x.get("lowest_seen"):
+                tags.append(pill("Lowest seen", WHITE, GREEN_DEEP, GREEN_DEEP))
+            if x.get("new"):
+                tags.append(pill("New", CYAN, INK))
+            sub = " ".join(f'<span style="display:inline-block;margin:4px 4px 0 0;">{t}</span>' for t in tags)
+            det = " · ".join(str(v) for v in (f'{x.get("size") or ""} {x.get("pkg")} of {x.get("qty")}'.strip(),
+                                               f'{x["cap"]:,} mL' if x.get("cap") else "") if v)
+            right = (f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["ppd"])}<span style="font-size:12px;font-weight:400;"> each</span></div>'
+                     f'<div style="font-size:13px;line-height:18px;color:{TEAL};">{money(x["price"])}</div>')
+            name = x["item"] if len(x["item"]) <= 60 else x["item"][:57].rstrip(" ,") + "…"
+            rows += item_row(name, det, x.get("store", ""), right, sub=sub, url=x.get("url"))
+        if g.get("more"):
+            rows += f'''
+    <tr><td style="padding:8px 0;font-family:{FONT};font-size:13px;line-height:18px;color:{TEAL};">+ {g["more"]} more {e(g["name"].lower())} matches</td></tr>'''
+    return section("My deals", deals.get("count", 0), rows, GREEN_DEEP)
+
+
+def render(d, date, logo_src="cid:att0", deals=None):
     """logo_src: 'cid:att0' = the email's first attachment (LOGO_FILE, inline=true). Gmail rewrites it to the
     attachment's Content-ID; other src forms (cid:0, https://...) are stripped by the Gmail connector."""
     changes, back, oos = d.get("price_changes", []), d.get("back_in_stock", []), d.get("out_of_stock", [])
@@ -147,6 +191,8 @@ def render(d, date, logo_src="cid:att0"):
     badge_row = " ".join(f'<span style="display:inline-block;margin:0 4px 8px 0;">{b}</span>' for b in badges)
 
     body = []
+    if deals and deals.get("groups"):
+        body.append(deals_section(deals))
     if quiet:
         body.append(f'''
 <tr><td style="padding:32px;">
@@ -350,23 +396,32 @@ def drop_small_changes(d):
     return d
 
 
-def build(changes_json, date, outdir):
+def build(changes_json, date, outdir, deals_json=None):
     """Write both editions and plan.json. An edition is only sent when it has something to say:
     full (owner) = any change or any problem; public (everyone else) = any price/stock/listing change.
     No email at all on a quiet day (owner 2026-10-30)."""
     import os
     os.makedirs(outdir, exist_ok=True)
     d = drop_small_changes(json.load(open(changes_json)))
+    deals = json.load(open(deals_json)) if deals_json and os.path.exists(deals_json) else None
+    new_deals = bool(deals and deals.get("new_count"))
     plan = {}
-    for name, view, send in (("owner", d, has_changes(d) or bool(d.get("issues"))),
+    for name, view, send in (("owner", d, has_changes(d) or bool(d.get("issues")) or new_deals),
                              ("public", public_view(d), has_changes(d))):
         plan[name] = {"send": send}
         if not send:
             continue
         base = os.path.join(outdir, name)
-        open(base + ".html", "w").write(render(view, date))
-        open(base + ".txt", "w").write((view.get("report") or "") + "\n\n" + TRACKER_LINE + "\n")
-        plan[name].update(subject=subject(view, date), html=base + ".html", text=base + ".txt")
+        own = deals if name == "owner" else None
+        open(base + ".html", "w").write(render(view, date, deals=own))
+        txt = (view.get("report") or "")
+        if own and own.get("text"):
+            txt = own["text"] + "\n\n" + txt
+        open(base + ".txt", "w").write(txt + "\n\n" + TRACKER_LINE + "\n")
+        subj = subject(view, date)
+        if own and own.get("count"):
+            subj += f' · {own["count"]} my deal{"s" if own["count"] != 1 else ""}' + (f' ({own["new_count"]} new)' if own.get("new_count") else "")
+        plan[name].update(subject=subj, html=base + ".html", text=base + ".txt")
     json.dump(plan, open(os.path.join(outdir, "plan.json"), "w"), indent=1, ensure_ascii=False)
     return plan
 
@@ -384,7 +439,8 @@ if __name__ == "__main__":
     if sys.argv[1] == "--logo":
         print(build_logo(sys.argv[2]))
     elif sys.argv[1] == "--build":
-        print(json.dumps(build(sys.argv[2], sys.argv[3], sys.argv[4]), indent=1, ensure_ascii=False))
+        # optional 5th arg: my_deals.json (owner edition only)
+        print(json.dumps(build(sys.argv[2], sys.argv[3], sys.argv[4], *sys.argv[5:6]), indent=1, ensure_ascii=False))
     else:
         d = json.load(open(sys.argv[1]))
         print(render(d, sys.argv[2] if len(sys.argv) > 2 else "", *sys.argv[3:4]))

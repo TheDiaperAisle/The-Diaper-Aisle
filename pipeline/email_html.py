@@ -133,7 +133,7 @@ def deals_section(deals):
     rows = ""
     for g in deals["groups"]:
         b = g.get("benchmark")
-        bl = f' &middot; you pay {money(b["ppd"])} ({e(b["name"])})' if b else ""
+        bl = f' &middot; you pay {money(b["ppd"])} delivered ({e(b["name"])})' if b else ""
         rows += (f'''
     <tr><td style="font-family:{FONT};font-size:12px;line-height:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
         color:{PURPLE};padding:14px 0 2px 0;border-bottom:1px solid {MIST};">{e(g["name"])} &middot; {_rng(g)}
@@ -153,7 +153,8 @@ def deals_section(deals):
             det = " · ".join(str(v) for v in (f'{x.get("size") or ""} {x.get("pkg")} of {x.get("qty")}'.strip(),
                                                f'{x["cap"]:,} mL' if x.get("cap") else "") if v)
             right = (f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["ppd"])}<span style="font-size:12px;font-weight:400;"> each</span></div>'
-                     f'<div style="font-size:13px;line-height:18px;color:{TEAL};">{money(x["price"])}</div>')
+                     f'<div style="font-size:12px;line-height:16px;color:{TEAL};">{"+ shipping" if x.get("plus_shipping") else "delivered"}</div>'
+                     f'<div style="font-size:13px;line-height:18px;color:{TEAL};">{money(x["price"])} pack</div>')
             name = x["item"] if len(x["item"]) <= 60 else x["item"][:57].rstrip(" ,") + "…"
             rows += item_row(name, det, x.get("store", ""), right, sub=sub, url=x.get("url"))
         if g.get("more"):

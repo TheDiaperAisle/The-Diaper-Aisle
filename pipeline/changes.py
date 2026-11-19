@@ -86,6 +86,13 @@ def delivered_note(c):
         else f" · delivered {unit(c['d_new'])}/{c['one']} ({SHIP_PROV})"
 
 
+def best_note(x):
+    b = x.get("best")
+    if not b:
+        return " · only listing of this product and size"
+    return f" · cheapest elsewhere {unit(b['d'])}/{x['one']}{' + shipping' if b['ship_quoted'] else ''} @ {b['store']} ({b['pkg']})"
+
+
 def money(x):
     return f"${x:.2f}"
 
@@ -128,6 +135,23 @@ def main():
     if len(set(renamed.values())) != len(renamed):
         renamed = {k: v for k, v in renamed.items() if list(renamed.values()).count(v) == 1}
 
+    # cheapest delivered price per piece for each product + size (ck) across all stores, for comparing new listings
+    by_ck = {}
+    for r in out.values():
+        if r.get("stale") or not r.get("avail") or not r.get("ck"):
+            continue
+        d, q = delivered(r, r["price"])
+        if d is not None:
+            by_ck.setdefault(r["ck"], []).append((d, q, r))
+
+    def best_other(r):
+        """the cheapest in-stock listing of the same product and size, other than r itself (owner 2026-11-19)"""
+        c = [x for x in by_ck.get(r.get("ck"), []) if x[2]["id"] != r["id"]]
+        if not c:
+            return None
+        d, q, x = min(c, key=lambda t: t[0])
+        return {"d": d, "ship_quoted": q, "store": x["store"], "url": x.get("url"), "pkg": f'{x.get("pkg")} of {x.get("qty")}'}
+
     changes, back, oos, new, gone = [], [], [], [], []
     for k, r in out.items():
         p = prev.get(k) or prev.get(renamed.get(k))
@@ -136,7 +160,7 @@ def main():
         if not p:
             d_new, quoted = delivered(r, r["price"])
             new.append({"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "avail": r.get("avail"), "url": r.get("url"),
-                        "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece")})
+                        "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece"), "best": best_other(r)})
             continue
         if p.get("stale"):
             continue
@@ -242,7 +266,7 @@ def main():
     sections += by_cat("PRICE CHANGES", changes, lambda c: f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c))
     sections += by_cat("BACK IN STOCK", back, lambda x: f"- {x['item']}: {money(x['price'])}")
     sections += by_cat("NEWLY OUT OF STOCK", oos, lambda x: f"- {x['item']}: {money(x['price'])}")
-    sections += by_cat("NEW LISTINGS", new, lambda x: f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") + delivered_note(x))
+    sections += by_cat("NEW LISTINGS", new, lambda x: f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") + delivered_note(x) + best_note(x))
     sections += by_cat("REMOVED LISTINGS", gone, lambda x: f"- {x['item']}: was {money(x['price'])}")
     for title, items in sections:
         if items:

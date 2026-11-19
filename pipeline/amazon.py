@@ -6,8 +6,9 @@ Amazon has no product feed, so this reads Amazon.ca search-result pages through 
 results from brands the tracker follows. It stays inside a monthly credit budget (Firecrawl free
 plan = 1,000 credits/month; default budget 700, leaving room for other use): each run gets an even
 share of what is left this month, and the searches checked longest ago go first. Listings not
-re-checked today are carried forward from yesterday with their 'checked' date, and dropped after
-CARRY_DAYS days without a check.
+re-checked today are carried forward from yesterday with their 'checked' date. Once a listing has gone
+RECHECK_DAYS without showing up in a search, its own product page is read: it stays (with today's price and
+stock) unless the page is gone. Listings no check reaches are dropped after CARRY_DAYS.
 
 Usage (after scraper.py, before stock_check.py):  python3 amazon.py OUT_DIR PREV_DIR
 Needs: ./scraper.py (same folder) for brand/name/product-key rules, a Firecrawl key in
@@ -68,7 +69,12 @@ def _firecrawl_scrape(url, key):
     used = int((d.get("metadata") or {}).get("creditsUsed") or 1)
     _CREDITS["left"] -= max(0, used - 1)
     return d.get("rawHtml") or "", used
-CARRY_DAYS = 14
+CARRY_DAYS = 30
+# Searches show one results page, so a listing can drop out of them while its page is still live (owner 2026-11-19:
+# active Amazon pages were reported as removed). A listing unchecked for RECHECK_DAYS gets its own page read,
+# oldest first, up to RECHECK_PAGES a day; it is removed only when Amazon says the page no longer exists.
+RECHECK_DAYS = 10
+RECHECK_PAGES = 10
 # Listings whose title leaves out the piece count, the size or the capacity (and no other store or CAP_BY_SIZE has
 # the capacity) get their product page read once, 1 credit each. Results are kept per ASIN in meta.amazon.qty.
 # While pages are waiting, up to PAGE_LOOKUPS a day are read and searches drop to no fewer than MIN_SEARCHES
@@ -351,6 +357,12 @@ def page_image(raw):
     return min(imgs, key=lambda u: imgs[u][0]) if imgs else None
 
 
+def page_gone(raw):
+    """Amazon's 'page not found' page (the listing was taken down). A robot check or empty answer is NOT gone."""
+    return bool(re.search(r"couldn.t find that page|Page Not Found|looking for something\?", raw, re.I)) \
+        and 'id="productTitle"' not in raw
+
+
 def fetch_page(asin, key):
     """-> (raw html of the Amazon.ca product page, credits used)"""
     return _firecrawl_scrape(f"{BASE}/dp/{asin}", key)
@@ -572,6 +584,7 @@ def main(out, prev):
             if nr is None:
                 return None   # now excluded (e.g. reusable cloth diapers, owner 2026-11-01)
             nr.pop("img", None)
+            nr["avail"] = r.get("avail", True)
             return nr
         return r
 
@@ -688,11 +701,55 @@ def main(out, prev):
             status["watched"] += 1
         time.sleep(1)
 
+    # listings searches no longer show: read their own page before giving up on them (see RECHECK_DAYS)
+    gone_asins = set()
+    status["rechecked"] = 0
+    seen_now = {r["asin"] for r in found.values()}
+    due_by = (datetime.date.fromisoformat(today) - datetime.timedelta(days=RECHECK_DAYS)).isoformat()
+    stale_rows = sorted((r for r in prev_amz.values() if r.get("asin") and r["asin"] not in seen_now
+                         and (r.get("checked") or "") <= due_by), key=lambda r: r.get("checked") or "")
+    recheck = list(dict.fromkeys(r["asin"] for r in stale_rows))
+    for a in recheck[:RECHECK_PAGES if bal else 0]:
+        raw = None
+        for attempt in range(3):   # Firecrawl rate-limits bursts of page reads (HTTP 429): wait and try again
+            try:
+                raw, used = fetch_page(a, key)
+                break
+            except CreditStop as e:
+                errors.append(str(e))
+                raw = False
+                break
+            except Exception as e:  # noqa
+                if "429" in str(e) and attempt < 2:
+                    time.sleep(30)
+                    continue
+                errors.append(f"page {a}: {e}")
+                break
+        if raw is False:
+            break
+        if raw is None:
+            continue
+        if page_gone(raw):
+            gone_asins.add(a)
+            continue
+        if 'id="productTitle"' not in raw:
+            continue   # robot check or unreadable: keep carrying it, try again another day
+        off = page_offer(raw)
+        for r in (x for x in stale_rows if x["asin"] == a):
+            nr = reparse(dict(r, price=off[1]) if off else r)
+            if not nr:
+                continue
+            nr["avail"] = off[2] if off else False   # page live but nothing for sale = currently unavailable
+            nr["checked"] = today
+            found[nr["id"]] = nr
+        status["rechecked"] += 1
+        time.sleep(7)
+
     # carry forward listings not seen today (until CARRY_DAYS old)
     cutoff = (datetime.date.fromisoformat(today) - datetime.timedelta(days=CARRY_DAYS)).isoformat()
     seen_asins = {r["asin"] for r in found.values()}
     carried = [r for rid, r in prev_amz.items() if rid not in found and r.get("asin") not in seen_asins
-               and (r.get("checked") or "") >= cutoff]
+               and r.get("asin") not in gone_asins and (r.get("checked") or "") >= cutoff]
     carried = [r for r in map(reparse, carried) if r]
     amz = list(found.values()) + carried
     fresh = {id(r) for r in found.values()}
@@ -798,7 +855,7 @@ def main(out, prev):
     for r in amz:
         h = hist.setdefault(r["id"], [])
         if id(r) in fresh:
-            point = [today, r["price"], 1]
+            point = [today, r["price"], 1 if r.get("avail", True) else 0]
             if not h or h[-1][1:] != point[1:]:
                 if h and h[-1][0] == today:
                     h[-1] = point

@@ -119,6 +119,35 @@ def delivered_html(c):
     return f'<div style="font-size:12px;line-height:16px;color:{TEAL};padding-top:4px;white-space:nowrap;">{txt}</div>'
 
 
+def unit_price(x):
+    return f"${x:.{3 if x < 1 else 2}f}"
+
+
+def new_right(x):
+    """new listing: delivered price per piece first (what the owner compares on, 2026-11-19), the pack price under it"""
+    sold = "" if x.get("avail", True) else f'<div style="padding-top:4px;">{pill("Sold out", WHITE, RED_DEEP, RED_DEEP)}</div>'
+    if x.get("d_new") is None:
+        return f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["price"])}</div>' + sold
+    return (f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{unit_price(x["d_new"])}'
+            f'<span style="font-size:12px;font-weight:400;">/{e(x["one"])}</span></div>'
+            f'<div style="font-size:12px;line-height:16px;color:{TEAL};">{"+ shipping" if x.get("ship_quoted") else "delivered"}</div>'
+            f'<div style="font-size:13px;line-height:18px;color:{TEAL};">{money(x["price"])} pack</div>' + sold)
+
+
+def best_html(x):
+    """cheapest in-stock listing of the same product and size at any store, for comparison"""
+    if "best" not in x:
+        return ""
+    b = x["best"]
+    if not b:
+        return "Only listing of this product and size"
+    link = f'<a href="{e(b["url"])}" style="color:{TEAL};">{e(b["store"])}</a>' if b.get("url") else e(b["store"])
+    cheaper = x.get("d_new") is not None and x["d_new"] < b["d"] - 1e-9
+    tag = f' &middot; <b style="color:{GREEN_DEEP};">new is cheaper</b>' if cheaper else ""
+    return (f'Cheapest elsewhere: {unit_price(b["d"])}/{e(x["one"])}{" + shipping" if b["ship_quoted"] else ""} '
+            f'at {link} ({e(b["pkg"])}){tag}')
+
+
 def _rng(g):
     a, b = g["range"]
     return f"{a:,}+ mL" if b >= 99999 else (f"under {b + 1:,} mL" if a == 0 else f"{a:,}–{b:,} mL")
@@ -231,11 +260,7 @@ def render(d, date, logo_src="cid:att0", deals=None):
             body.append(section(title, len(items), rows, accent))
 
     if new:
-        rows = by_cat(new, lambda x: item_row(*split_item(x["item"]),
-                      f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["price"])}</div>'
-                      + delivered_html(x)
-                      + ("" if x.get("avail", True) else f'<div style="padding-top:4px;">{pill("Sold out", WHITE, RED_DEEP, RED_DEEP)}</div>'),
-                      url=x.get("url")))
+        rows = by_cat(new, lambda x: item_row(*split_item(x["item"]), new_right(x), sub=best_html(x), url=x.get("url")))
         body.append(section("New listings", len(new), rows, TEAL))
 
     if gone:

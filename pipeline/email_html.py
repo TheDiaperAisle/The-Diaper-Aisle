@@ -256,14 +256,16 @@ def render(d, date, logo_src="cid:att0", deals=None):
                      f'<div style="font-size:13px;line-height:18px;color:{TEAL};"><s>{money(c["old"])}</s></div>'
                      f'<div style="font-size:12px;line-height:16px;font-weight:700;color:{colour};padding-top:2px;">'
                      f'{pct} {"up" if is_up else "down"}</div>' + delivered_html(c))
-            return item_row(p, det, st, right, url=c.get("url"))
+            swing = pill("&#9888; Large price swing", RED_DEEP, WHITE) if c.get("swing") else ""
+            return item_row(p, det, st, right, sub=f'<div style="padding-top:6px;">{swing}</div>' if swing else "", url=c.get("url"))
         body.append(section("Price changes", len(changes), by_cat(changes, change_row), BLUE))
 
     for title, items, accent, tag in (("Back in stock", back, GREEN_DEEP, pill("In stock", WHITE, GREEN_DEEP, GREEN_DEEP)),
                                       ("Newly out of stock", oos, RED_DEEP, pill("Sold out", WHITE, RED_DEEP, RED_DEEP))):
         if items:
             rows = by_cat(items, lambda x, tag=tag: item_row(*split_item(x["item"]),
-                          f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};padding-bottom:4px;">{money(x["price"])}</div>{tag}', url=x.get("url")))
+                          f'<div style="font-size:15px;line-height:20px;font-weight:700;color:{INK};">{money(x["price"])}</div>'
+                          + delivered_html(x) + f'<div style="padding-top:4px;">{tag}</div>', url=x.get("url")))
             body.append(section(title, len(items), rows, accent))
 
     if new:

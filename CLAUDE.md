@@ -65,14 +65,15 @@ Walmart.ca cannot be read from the cloud run. In a local session with Claude in 
 - When asking the owner to check or clarify a product, include a link to its product page at each store involved (owner 2026-10-31).
 - Mention only what changed and what is broken. No "everything worked" lines, no row counts, no "data published" line.
 - Quiet day banner: "Dip Aisle: no price or stock changes today."
-- PROBLEMS cover: store failures, per-store row/product counts down more than 10%, jumps in rows with no pack quantity, price moves over 50% (likely parse errors), scraper crashes, failed Rearz price lookups or thumbnail downloads, products that lost a capacity they had yesterday because their page could not be read, a failed stock check, and a failed publish.
+- PROBLEMS cover: store failures, per-store row/product counts down more than 10%, jumps in rows with no pack quantity, scraper crashes, failed Rearz price lookups or thumbnail downloads, products that lost a capacity they had yesterday because their page could not be read, a failed stock check, and a failed publish.
+- Price moves over 50% are NOT problems: they get a "Large price swing" tag on the price change itself (owner 2026-11-19).
 - Missing capacities are NOT a problem by themselves (most TENA, Prevail and Attends products never state one). Failed capacity-page reads are expected (MyDips and AgeComfort geo-redirect cloud servers) and matter only when they cost a product its capacity.
 
 ## Emails
 Build: `python3 pipeline/email_html.py --build changes.json <YYYY-MM-DD> ./email my_deals.json` (leave off `my_deals.json` if step 7b did not run) and `base64 -w0 assets/tda-logo-email.png > logo.b64`.
 `email/plan.json` says, per edition, whether to send and gives the subject.
 Each section is split into Diapers, Pull-ups and Boosters (owner 2026-11-10): `changes.py` gives every item its `cat`, the text report has one section per category (`PRICE CHANGES · DIAPERS (n)`), the HTML has sub-headings. Problems are not split.
-Price changes under 5% are left out of both editions as noise (`EMAIL_MIN_PCT` in email_html.py, owner 2026-11-08); the tracker and its history keep them. Every product name links to its product page. New listings lead with the delivered $/piece (ON) and show the cheapest in-stock listing of the same product + size at any other store (owner 2026-11-19).
+Price changes under 5% are left out of both editions as noise (`EMAIL_MIN_PCT` in email_html.py, owner 2026-11-08); the tracker and its history keep them. Every product name links to its product page. New listings lead with the delivered $/piece (ON) and show the cheapest in-stock listing of the same product + size at any other store (owner 2026-11-19). Back in stock and newly out of stock items show the delivered $/piece too.
 
 - `owner` edition: full report including PROBLEMS, with the "My deals" section first (owner 2026-11-16). My deals lists only deals that changed today (new, delivered price down 5%+, or a new lowest price) plus a count of unchanged ones; the full list goes out on Mondays (owner 2026-11-19). No changed deal = no My deals section. To nicholas.dumoulin2@gmail.com only. Goes out when anything changed, there is any problem, a deal changed today, or it is Monday's full deal list.
 - `public` edition: same report without problems. To the other recipients, all in To, one email. Goes out only when a price, stock or listing changed.

@@ -47,6 +47,7 @@ def label(r):
 # Delivered price per piece, as the tracker shows it (owner 2026-11-03: price changes include it). Shipping rules come
 # from the page itself (index.html, const SHIP) so the email and the tracker always agree; province = the page default.
 SHIP_PROV = "ON"
+SWING = 0.5   # price changes bigger than this get a "large price swing" tag
 ONE = {"diaper": "diaper", "pullup": "pull-up", "booster": "booster"}
 
 
@@ -170,11 +171,14 @@ def main():
             changes.append({"id": k, "cat": r.get("cat"), "item": label(r), "old": p["price"], "new": r["price"],
                             "pct": round((r["price"] - p["price"]) / p["price"] * 100, 1) if p["price"] else None,
                             "d_old": d_old, "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece"),
-                            "url": r.get("url")})
-        if r.get("avail") and not p.get("avail"):
-            back.append({"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "url": r.get("url")})
-        elif p.get("avail") and not r.get("avail"):
-            oos.append({"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "url": r.get("url")})
+                            "url": r.get("url"),
+                            # over 50%: often a parsing error, shown as a tag on the change, not a problem (owner 2026-11-19)
+                            "swing": bool(p["price"] and abs(r["price"] - p["price"]) / p["price"] > SWING)})
+        if bool(r.get("avail")) != bool(p.get("avail")):
+            d_new, quoted = delivered(r, r["price"])
+            x = {"id": k, "cat": r.get("cat"), "item": label(r), "price": r["price"], "url": r.get("url"),
+                 "d_new": d_new, "ship_quoted": quoted, "one": ONE.get(r.get("cat"), "piece")}
+            (back if r.get("avail") else oos).append(x)
     for k, p in prev.items():
         if k not in out and k not in renamed.values() and p["store"] not in stale_stores:
             gone.append({"id": k, "cat": p.get("cat"), "item": label(p), "price": p["price"], "url": p.get("url")})
@@ -204,10 +208,6 @@ def main():
     for s, n in noqty.items():
         if n > prev_noqty.get(s, 0) + 5:
             issues.append(f"{s}: {n} rows have no pack quantity (was {prev_noqty.get(s, 0)})")
-    for r in live:
-        p = prev.get(r["id"]) or prev.get(renamed.get(r["id"]))
-        if p and not p.get("stale") and p["price"] and abs(r["price"] - p["price"]) / p["price"] > 0.5:
-            issues.append(f"price moved >50%, check for a parsing error: {label(r)} {money(p['price'])} → {money(r['price'])}")
     if log is not None:
         for kind, pat in (("Rearz option-price lookups failed", r"^rearz lookup fail"),
                           ("thumbnails failed to download", r"^thumb fail"),
@@ -263,9 +263,10 @@ def main():
                 out.append((f"{title} · {CAT_NAMES.get(cat, 'OTHER')}", [fmt(x) for x in grp]))
         return out
     sections = [("PROBLEMS", [f"- {i}" for i in issues])]
-    sections += by_cat("PRICE CHANGES", changes, lambda c: f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c))
-    sections += by_cat("BACK IN STOCK", back, lambda x: f"- {x['item']}: {money(x['price'])}")
-    sections += by_cat("NEWLY OUT OF STOCK", oos, lambda x: f"- {x['item']}: {money(x['price'])}")
+    sections += by_cat("PRICE CHANGES", changes, lambda c: f"- {c['item']}: {money(c['old'])} → {money(c['new'])} ({c['pct']:+.1f}%)" + delivered_note(c)
+                         + (" · ⚠ LARGE PRICE SWING" if c.get("swing") else ""))
+    sections += by_cat("BACK IN STOCK", back, lambda x: f"- {x['item']}: {money(x['price'])}" + delivered_note(x))
+    sections += by_cat("NEWLY OUT OF STOCK", oos, lambda x: f"- {x['item']}: {money(x['price'])}" + delivered_note(x))
     sections += by_cat("NEW LISTINGS", new, lambda x: f"- {x['item']}: {money(x['price'])}" + ("" if x["avail"] else " (out of stock)") + delivered_note(x) + best_note(x))
     sections += by_cat("REMOVED LISTINGS", gone, lambda x: f"- {x['item']}: was {money(x['price'])}")
     for title, items in sections:

@@ -74,7 +74,7 @@ Build: `python3 pipeline/email_html.py --build changes.json <YYYY-MM-DD> ./email
 Each section is split into Diapers, Pull-ups and Boosters (owner 2026-11-10): `changes.py` gives every item its `cat`, the text report has one section per category (`PRICE CHANGES · DIAPERS (n)`), the HTML has sub-headings. Problems are not split.
 Price changes under 5% are left out of both editions as noise (`EMAIL_MIN_PCT` in email_html.py, owner 2026-11-08); the tracker and its history keep them. Every product name links to its product page. New listings lead with the delivered $/piece (ON) and show the cheapest in-stock listing of the same product + size at any other store (owner 2026-11-19).
 
-- `owner` edition: full report including PROBLEMS, with the "My deals" section first (owner 2026-11-16). To nicholas.dumoulin2@gmail.com only. Goes out when anything changed, there is any problem, or a deal is new today.
+- `owner` edition: full report including PROBLEMS, with the "My deals" section first (owner 2026-11-16). My deals lists only deals that changed today (new, delivered price down 5%+, or a new lowest price) plus a count of unchanged ones; the full list goes out on Mondays (owner 2026-11-19). No changed deal = no My deals section. To nicholas.dumoulin2@gmail.com only. Goes out when anything changed, there is any problem, a deal changed today, or it is Monday's full deal list.
 - `public` edition: same report without problems. To the other recipients, all in To, one email. Goes out only when a price, stock or listing changed.
   Other recipients: drewlehman5@gmail.com
 - Quiet day (no changes and no problems): no email to anyone and no push notification (owner decision, 2026-10-31).

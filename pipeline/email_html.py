@@ -174,6 +174,8 @@ def deals_section(deals):
                 tags.append(pill(e(x["fit_label"]), bg, fg, fg if bg == WHITE else None))
             if x.get("upgrade"):
                 tags.append(pill(f'More mL for less than your {e(names.get(x["beats"], x["beats"]).lower())}', GREEN, INK))
+            if (x.get("drop_pct") or 0) >= 5:
+                tags.append(pill(f'Down {x["drop_pct"]:.0f}%', WHITE, GREEN_DEEP, GREEN_DEEP))
             if x.get("lowest_seen"):
                 tags.append(pill("Lowest seen", WHITE, GREEN_DEEP, GREEN_DEEP))
             if x.get("new"):
@@ -189,7 +191,12 @@ def deals_section(deals):
         if g.get("more"):
             rows += f'''
     <tr><td style="padding:8px 0;font-family:{FONT};font-size:13px;line-height:18px;color:{TEAL};">+ {g["more"]} more {e(g["name"].lower())} matches</td></tr>'''
-    return section("My deals", deals.get("count", 0), rows, GREEN_DEEP)
+    if not deals.get("full", True) and deals.get("unchanged"):
+        n = deals["unchanged"]
+        rows = (f'''
+    <tr><td style="padding:10px 0 0 0;font-family:{FONT};font-size:13px;line-height:18px;color:{TEAL};">
+      Only deals that changed today. {n} other deal{"s" if n != 1 else ""} unchanged &middot; full list on Mondays.</td></tr>''' + rows)
+    return section("My deals" if deals.get("full", True) else "My deals: changed today", deals.get("count", 0), rows, GREEN_DEEP)
 
 
 def render(d, date, logo_src="cid:att0", deals=None):
@@ -430,7 +437,7 @@ def build(changes_json, date, outdir, deals_json=None):
     os.makedirs(outdir, exist_ok=True)
     d = drop_small_changes(json.load(open(changes_json)))
     deals = json.load(open(deals_json)) if deals_json and os.path.exists(deals_json) else None
-    new_deals = bool(deals and deals.get("new_count"))
+    new_deals = bool(deals and deals.get("notify", deals.get("new_count")))
     plan = {}
     for name, view, send in (("owner", d, has_changes(d) or bool(d.get("issues")) or new_deals),
                              ("public", public_view(d), has_changes(d))):
@@ -446,7 +453,10 @@ def build(changes_json, date, outdir, deals_json=None):
         open(base + ".txt", "w").write(txt + "\n\n" + TRACKER_LINE + "\n")
         subj = subject(view, date)
         if own and own.get("count"):
-            subj += f' · {own["count"]} my deal{"s" if own["count"] != 1 else ""}' + (f' ({own["new_count"]} new)' if own.get("new_count") else "")
+            if own.get("full", True):
+                subj += f' · {own["count"]} my deal{"s" if own["count"] != 1 else ""}'
+            else:
+                subj += f' · {own["count"]} deal change{"s" if own["count"] != 1 else ""}'
         plan[name].update(subject=subj, html=base + ".html", text=base + ".txt")
     json.dump(plan, open(os.path.join(outdir, "plan.json"), "w"), indent=1, ensure_ascii=False)
     return plan

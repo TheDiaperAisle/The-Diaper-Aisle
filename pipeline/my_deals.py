@@ -14,12 +14,18 @@ A listing is a deal when it is a diaper or booster the owner can wear (size/fit 
 price per piece is at or below the owner's benchmark for its absorbency tier, or below the benchmark of a LOWER
 tier (more capacity for less: "upgrade"). Benchmarks = the cheapest in-stock price today of the products the owner
 already uses in that tier (falls back to yesterday's price when all of them are sold out).
+
+Daily vs weekly (owner 2026-11-19: the same matches every day were too much): on most days only deals that CHANGED
+are listed (new today, delivered price down DROP_PCT% or more since yesterday, or a new lowest price), with a count
+of the unchanged ones; on WEEKLY_DAY (Monday) the full list. `--full` forces the full list.
 """
-import glob, json, os, sys
+import datetime, glob, json, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from changes import delivered  # same shipping rules as the tracker page (Ontario)
 
+DROP_PCT = 5          # a deal whose delivered price fell this much since yesterday counts as changed
+WEEKLY_DAY = 0        # Monday: the full list of current deals
 FIT_ORDER = {"good": 0, "likely": 1, "snug": 2, "unknown": 3, "small": 4, "large": 5}
 FIT_LABEL = {"good": "Fits you", "likely": "Likely fits", "snug": "Snug fit", "unknown": "Fit unknown",
              "small": "May run small", "large": "May run large"}
@@ -94,7 +100,7 @@ def dppd(r):
     return (d if d is not None and not quoted else r["ppd"]), (d is None or quoted)
 
 
-def run(out_dir, prev_dir, profile_path):
+def run(out_dir, prev_dir, profile_path, full=None):
     prof = json.load(open(profile_path))
     rows, prev = load_rows(out_dir), load_rows(prev_dir)
     hist = load_hist(out_dir) or load_hist(prev_dir)
@@ -167,6 +173,9 @@ def run(out_dir, prev_dir, profile_path):
             "per_l": round(r["_d"] / cap * 1000, 2) if cap else None, "store": r.get("store"), "url": r.get("url"),
             "fit": fit, "fit_label": FIT_LABEL.get(fit) if fit else None,
             "new": not was_deal, "lowest_seen": prior_low is not None and r["price"] < prior_low - 1e-9,
+            # changed today: the price moved since yesterday (a low price that holds is not news again)
+            "moved": bool(p0 and p0.get("price") != r["price"]),
+            "drop_pct": round((1 - r["_d"] / p0["_d"]) * 100, 1) if (p0 and p0.get("_d") and r["_d"] < p0["_d"]) else None,
             "ck": r.get("ck") or r["id"],
         }
         # one row per product x size: keep the cheapest pack, preferring a better fit
@@ -175,9 +184,21 @@ def run(out_dir, prev_dir, profile_path):
         if cur is None or (deal["ppd"], FIT_ORDER.get(fit or "", 9)) < (cur["ppd"], FIT_ORDER.get(cur["fit"] or "", 9)):
             deals[k] = deal
 
+    for d in deals.values():
+        d["lowest_seen"] = d["lowest_seen"] and (d["moved"] or d["new"])
+        d["changed"] = d["new"] or d["lowest_seen"] or (d["drop_pct"] or 0) >= DROP_PCT
+    if full is None:
+        try:
+            day = json.load(open(os.path.join(out_dir, "meta.json"))).get("date")
+            full = datetime.date.fromisoformat(day).weekday() == WEEKLY_DAY
+        except Exception:  # noqa
+            full = datetime.date.today().weekday() == WEEKLY_DAY
+    total = len(deals)
+    changed = sum(1 for d in deals.values() if d["changed"])
+
     out = []
     for t in tiers:
-        ds = [d for d in deals.values() if d["tier"] == t["id"]]
+        ds = [d for d in deals.values() if d["tier"] == t["id"] and (full or d["changed"])]
         # best value first: price per litre for diapers, price per piece for boosters
         ds.sort(key=lambda d: (FIT_ORDER.get(d["fit"] or "", 0) >= 4, d["per_l"] if d["per_l"] else d["ppd"]))
         if not ds:
@@ -185,9 +206,12 @@ def run(out_dir, prev_dir, profile_path):
         lim = prof.get("max_per_tier", 6)
         out.append({"tier": t["id"], "name": t["name"], "range": [t["min"], t["max"]], "benchmark": bench.get(t["id"]),
                     "deals": ds[:lim], "more": max(0, len(ds) - lim)})
-    new_count = sum(1 for g in out for d in g["deals"] if d["new"])
-    res = {"benchmarks": bench, "groups": out, "new_count": new_count,
-           "count": sum(len(g["deals"]) for g in out), "text": to_text(out, bench, tiers)}
+    new_count = sum(1 for d in deals.values() if d["new"])
+    shown = sum(len(g["deals"]) + g["more"] for g in out)
+    res = {"benchmarks": bench, "groups": out, "new_count": new_count, "changed": changed, "total": total,
+           "full": full, "unchanged": total - shown, "count": sum(len(g["deals"]) for g in out),
+           "notify": bool(changed or (full and total)),
+           "text": to_text(out, bench, tiers, full, total - shown)}
     return res
 
 
@@ -196,18 +220,22 @@ def rng(t):
     return f"{a:,}+ mL" if b >= 99999 else (f"under {b + 1:,} mL" if a == 0 else f"{a:,}–{b:,} mL")
 
 
-def to_text(groups, bench, tiers):
+def to_text(groups, bench, tiers, full=True, unchanged=0):
     if not groups:
         return ""
     names = {t["id"]: t["name"] for t in tiers}
-    lines = ["MY DEALS (delivered to Ontario, at or below what you pay now)"]
+    lines = ["MY DEALS (delivered to Ontario, at or below what you pay now)" if full else
+             "MY DEALS: CHANGED TODAY (delivered to Ontario, at or below what you pay now)"]
+    if not full and unchanged:
+        lines.append(f"{unchanged} other deal{'s' if unchanged != 1 else ''} unchanged. Full list on Mondays.")
     for g in groups:
         b = g["benchmark"]
         lines.append("")
         lines.append(f'{g["name"]} · {rng(g)}' + (f' · your price ${b["ppd"]:.2f} ({b["name"]})' if b else ""))
         for d in g["deals"]:
             tags = [x for x in (d["fit_label"], f'beats your {names[d["beats"]].lower()} price' if d["upgrade"] else "",
-                                "new" if d["new"] else "", "lowest seen" if d["lowest_seen"] else "") if x]
+                                "new" if d["new"] else "", f'down {d["drop_pct"]:.0f}%' if (d.get("drop_pct") or 0) >= DROP_PCT else "",
+                                "lowest seen" if d["lowest_seen"] else "") if x]
             cap = f'{d["cap"]:,} mL · ' if d["cap"] else ""
             lines.append(f'- {d["item"]} {d["size"] or ""} {d["pkg"]} {d["qty"]} @ {d["store"]}: ${d["price"]:.2f} '
                          f'= ${d["ppd"]:.2f} each {"+ shipping" if d["plus_shipping"] else "delivered"} · {cap}{", ".join(tags)}\n  {d["url"]}')
@@ -217,4 +245,5 @@ def to_text(groups, bench, tiers):
 
 
 if __name__ == "__main__":
-    print(json.dumps(run(sys.argv[1], sys.argv[2], sys.argv[3]), indent=1, ensure_ascii=False))
+    args = [a for a in sys.argv[1:] if a != "--full"]
+    print(json.dumps(run(args[0], args[1], args[2], full=True if "--full" in sys.argv else None), indent=1, ensure_ascii=False))

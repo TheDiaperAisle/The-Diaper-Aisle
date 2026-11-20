@@ -848,6 +848,10 @@ QTY_MANUAL = {
     # AgeComfort 'ABRI-FORM PREMIUM ADULT BRIEFS XL4 EXTE' $135.99: owner's estimate (2026-11-01) of a case of 36 or 48;
     # 36 = 3 bags of 12, like the L4 cases at AgeComfort and Healthwick ($3.78 each; 48 would make XL cheaper than L)
     ("AgeComfort", "abri-form-premium-adult-briefs-xl4-exte"): ("Case", 36),
+    # Little Northwood Little Quest: the site states no count yet; owner's assumption (2026-11-20) of 10 per pack,
+    # the usual bag size. A count the store publishes later (description or option) replaces this automatically.
+    ("Little Northwood", "little-quest-cloth-backed"): ("Bag", 10),
+    ("Little Northwood", "little-quest-plastic-backed"): ("Bag", 10),
 }
 
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.

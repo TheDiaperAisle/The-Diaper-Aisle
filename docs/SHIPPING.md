@@ -1,6 +1,6 @@
 # Dip Aisle — shipping costs by store (checked 2026-10-30)
 
-Applied on the tracker as the "Delivered" column for every package (samples, bags, cases): (package price + shipping for an order of just that package) ÷ units, before tax. The $/L column ("Delivered $/L") also uses the delivered unit price. Rules are a `SHIP` constant in the page's script; update it there if a store changes its policy.
+Applied on the tracker as the "Delivered" column for every package (samples, bags, cases): (package price + shipping for an order of just that package) ÷ units, before tax. The $/L column ("Delivered $/L") also uses the delivered unit price. Rules are in `shipping.json` at the repo root (read by the page and by `pipeline/changes.py`); update it there if a store changes its policy. No rebuild is needed.
 
 | Store | Rule | How checked |
 | --- | --- | --- |

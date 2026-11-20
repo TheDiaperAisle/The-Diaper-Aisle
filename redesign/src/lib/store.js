@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { getJSON, loadSet, prepareRows, bigSrc } from "./data";
+import { getJSON, loadSet, prepareRows, bigSrc, SHIP, SHIP_URL } from "./data";
 
 // One shared load of the published data; components subscribe to it.
 const state = { status: "loading", meta: null, rows: [], groups: new Map(), thumbs: {}, big: {}, hist: null, histStatus: "idle", error: null };
@@ -13,7 +13,12 @@ async function start() {
   if (started) return; started = true;
   try {
     state.meta = await getJSON("meta.json");
-    const cats = await loadSet("catalog", state.meta.catalogDocs);
+    const v = "?v=" + encodeURIComponent(state.meta.lastRun || Date.now());
+    const [cats, ship] = await Promise.all([
+      loadSet("catalog", state.meta.catalogDocs),
+      fetch(SHIP_URL + v).then(r => r.ok ? r.json() : null).catch(() => null),   // without it, delivered prices show "—"
+    ]);
+    if (ship) Object.assign(SHIP, ship);
     Object.assign(state, prepareRows(cats), { status: "ready" }); emit();
     const th = await loadSet("thumbs", state.meta.thumbDocs);
     const o = {}, big = {};

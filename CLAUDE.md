@@ -7,9 +7,9 @@ https://thediaperaisle.github.io/The-Diaper-Aisle/), its data (`data/`) and the 
 Owner: Nick (nicholas.dumoulin2@gmail.com). The tracker covers adult disposable diaper prices in Canada (CAD).
 
 ## Layout
-- `index.html`: the tracker page. It reads `data/`. Change it only when the owner asks, never during the daily run.
-- `v2/`: the redesigned tracker (React + Tailwind build, served at `/The-Diaper-Aisle/v2/`, reads the same `data/`). Built from `redesign/` (`cd redesign && npm ci && npm run build`); design docs in `redesign/DESIGN-SYSTEM.md` and `DESIGN-PLAN.md`. Same rule as `index.html`: change only when the owner asks, never during the daily run. Its shipping rules (`redesign/src/lib/ship.json`) copy the `SHIP` constant in `index.html`; update both together.
-- `.claude/skills/`: design skills for UI work (sources in its README). `.claude/settings.json` runs the impeccable design hook; it only reviews UI files and does nothing during the daily run.
+- `index.html` + `app/`: the tracker page (all tabs and Trends), built from `redesign/` (React + Tailwind; `cd redesign && npm ci && npm run build` rewrites only `index.html` and `app/`). It reads `data/` and `shipping.json`. Design docs: `redesign/DESIGN-SYSTEM.md`, `redesign/DESIGN-PLAN.md`. Change the page only when the owner asks, never during the daily run, and never hand-edit `index.html` or `app/`: edit `redesign/src` and rebuild.
+- `shipping.json`: shipping rules per store and province (the page's delivered prices and `pipeline/changes.py`'s). Edit it directly; no rebuild needed. Background in `docs/SHIPPING.md`.
+- `trends.html`, `v2/index.html`: redirects to the tracker (old links).
 - `tools/publish.py`: copies a scraper output folder into `data/` and updates `data/meta.json` doc counts.
 - `pipeline/scraper.py`: the stores (Healthwick, ABUniverse, MyDips, AgeComfort via Shopify `/products.json`; Rearz via BigCommerce pages + price API; Well.ca, GoodNites only, via its product sitemap and product pages; Little Northwood via its Ecwid storefront API). Writes `out/`.
 - `pipeline/amazon.py`: adds Amazon.ca listings through the Firecrawl API. Needs `FIRECRAWL_API_KEY` in the environment (never commit the key, never print it). Imports `scraper.py` from its own folder.
@@ -18,7 +18,7 @@ Owner: Nick (nicholas.dumoulin2@gmail.com). The tracker covers adult disposable 
 - `pipeline/email_html.py`: builds the designed HTML email (owner and public editions) from `changes.json`.
 - `pipeline/my_deals.py`: the owner's personal deal matcher ("My deals", owner edition only). Reads `out/` and `prev/` plus the owner's private shopping profile, which the scheduled task's prompt supplies. The profile is never committed: write it to `../my_profile.json`, outside the repo.
 - `assets/tda-logo-email.png`: the email logo (inline attachment, `cid:att0`).
-- `docs/`: SHIPPING.md (shipping rules behind the page's `SHIP` constant) and the old Cowork runbook (history and owner decisions; background only).
+- `docs/`: SHIPPING.md (where the rules in `shipping.json` come from) and the old Cowork runbook (history and owner decisions; background only).
 
 Scratch folders `out/`, `prev/`, `email/` and files `scrape.log`, `changes.json`, `logo.b64`, `my_deals.json` are git-ignored. Never commit them.
 

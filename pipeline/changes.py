@@ -45,7 +45,8 @@ def label(r):
 
 
 # Delivered price per piece, as the tracker shows it (owner 2026-11-03: price changes include it). Shipping rules come
-# from the page itself (index.html, const SHIP) so the email and the tracker always agree; province = the page default.
+# from shipping.json at the repo root, the file the tracker page loads, so the email and the tracker always agree;
+# province = the page default.
 SHIP_PROV = "ON"
 SWING = 0.5   # price changes bigger than this get a "large price swing" tag
 ONE = {"diaper": "diaper", "pullup": "pull-up", "booster": "booster"}
@@ -53,8 +54,9 @@ ONE = {"diaper": "diaper", "pullup": "pull-up", "booster": "booster"}
 
 def _ship_rules():
     try:
-        page = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "index.html"), encoding="utf-8").read()
-        return json.loads(re.search(r"const SHIP = (\{.*?\});\n", page).group(1))["stores"]
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shipping.json")
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)["stores"]
     except Exception:  # noqa
         return {}
 

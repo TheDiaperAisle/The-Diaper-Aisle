@@ -1,8 +1,10 @@
 // Data and business rules ported from the v1 tracker (index.html / trends.html). Same files, same maths.
-import SHIP from "./ship.json";
-export { SHIP };
+// Shipping rules per store and province: shipping.json at the site root (also read by pipeline/changes.py for the
+// emails). Loaded at run time, so a shipping change needs no rebuild. Filled in by lib/store.js before prices are shown.
+export const SHIP = { checked: "", stores: {} };
+export const SHIP_URL = import.meta.env.VITE_SHIP || "shipping.json";
 
-export const DATA_BASE = import.meta.env.VITE_DATA || "../data/";
+export const DATA_BASE = import.meta.env.VITE_DATA || "data/";
 export const FEEDBACK = "thediaperaisle@gmail.com";
 
 export const SIZE_ORDER = ["Youth/Junior","XXS","XS","S","S/M","M","M/L","L","L/XL","Regular","XL","XXL","3XL","4XL","5XL","One size"];

@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens (DESIGN-SYSTEM.md §1). RGB channels so Tailwind opacity modifiers work. */
+:root {
+  --bg: 243 245 249; --card: 255 255 255; --sunken: 238 241 246;
+  --ink: 29 21 48; --muted: 79 72 103; --line: 220 223 232; --line-strong: 166 159 189;
+  --accent: 31 95 128; --on-accent: 255 255 255; --accent-soft: 227 240 249;
+  --good: 31 110 53; --good-soft: 226 244 227; --bad: 168 48 44; --bad-soft: 251 231 229; --warn: 122 82 0;
+  --brand-ink: 51 37 76; --brand-blue: 94 166 219; --brand-sky: 182 217 243;
+  /* charts: fixed store slots + price direction (validated in v1) */
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300;
+  --dec: #2a78d6; --inc: #e34948; --grid: #e6e3ee; --axis: #9a93b0;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: 23 17 42; --card: 34 26 58; --sunken: 28 21 50;
+    --ink: 245 243 250; --muted: 201 194 220; --line: 58 47 87; --line-strong: 108 96 141;
+    --accent: 134 197 239; --on-accent: 23 17 42; --accent-soft: 34 56 90;
+    --good: 143 214 148; --good-soft: 30 58 42; --bad: 246 165 154; --bad-soft: 67 32 42; --warn: 241 196 107;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #2c9a2c;
+    --dec: #3987e5; --inc: #e66767; --grid: #3a2f57; --axis: #7b6f9a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: 23 17 42; --card: 34 26 58; --sunken: 28 21 50;
+  --ink: 245 243 250; --muted: 201 194 220; --line: 58 47 87; --line-strong: 108 96 141;
+  --accent: 134 197 239; --on-accent: 23 17 42; --accent-soft: 34 56 90;
+  --good: 143 214 148; --good-soft: 30 58 42; --bad: 246 165 154; --bad-soft: 67 32 42; --warn: 241 196 107;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #2c9a2c;
+  --dec: #3987e5; --inc: #e66767; --grid: #3a2f57; --axis: #7b6f9a;
+  color-scheme: dark;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: 72px; }
+  body { @apply bg-bg text-ink font-sans text-base antialiased; font-feature-settings: "tnum" 0; }
+  :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+  a, button, summary, label, select, [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  ::selection { background: rgb(var(--brand-sky)); color: rgb(29 21 48); }
+}
+
+@layer components {
+  .num { font-variant-numeric: tabular-nums lining-nums; }
+  .eyebrow { @apply text-cap font-semibold uppercase tracking-[0.04em] text-muted; }
+  .card { @apply bg-card border border-line rounded-xl; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full font-semibold text-sm min-h-[44px] px-5 transition-colors duration-150 cursor-pointer select-none; }
+  .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent/90; }
+  .btn-ghost { @apply btn border border-line-strong text-ink bg-card hover:border-accent hover:text-accent; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border text-sm font-medium min-h-[36px] px-3.5 transition-colors duration-150 cursor-pointer; }
+  .input { @apply w-full min-w-0 rounded-lg border border-line-strong bg-card text-ink text-[16px] px-3 min-h-[44px] placeholder:text-muted; }   /* 16px: iOS does not zoom on focus */
+  .link { @apply text-accent font-semibold underline-offset-2 hover:underline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* sheet / dialog motion */
+@keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-in { animation: sheet-in 200ms ease-out; }
+dialog::backdrop { background: rgb(23 17 42 / 0.6); }

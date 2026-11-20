@@ -10,3 +10,9 @@ __pycache__/
 .env
 my_deals.json
 my_profile.json
+
+# Claude Code / design skills: per-machine files
+.claude/settings.local.json
+.claude/skills/impeccable/scripts/bin/
+.impeccable/config.local.json
+.impeccable/cache/

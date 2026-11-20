@@ -638,6 +638,113 @@
     ]
    }
   },
+  "Little Northwood": {
+   "summary": "Free shipping in Canada on orders $150+ (before tax). Below $150 the fee is set at checkout; remote or northern areas get $20 off instead of free shipping.",
+   "source": "Little Northwood Shipping & Payment Policy page",
+   "verified": false,
+   "rules": {
+    "ON": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "QC": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "MB": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "AB": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "SK": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "BC": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "NB": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "NS": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "PE": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ],
+    "NL": [
+     [
+      0,
+      null
+     ],
+     [
+      150,
+      0
+     ]
+    ]
+   }
+  },
   "Rearz": {
    "summary": "Free at $100+ to every province except NB, NS, PE and NL. Otherwise the carrier quote minus 25% of the order value.",
    "source": "Shipping & Returns and Shipping Discounts pages",

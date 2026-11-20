@@ -21,3 +21,6 @@ Free shipping on orders $35+ (before tax) to most Canadian addresses. Below $35,
 
 ## Walmart (added 2026-11-02, prices entered by hand)
 Assumed: free shipping on orders $35+ for items sold by Walmart; below $35 the fee is shown at checkout. Not verified yet.
+
+## Little Northwood (added 2026-11-20)
+Free shipping in Canada on orders over $150 CAD before tax (standard regions). Below $150 the fee is calculated at checkout, so the tracker shows the price before shipping with a "+ shipping" tag. Remote or northern regions get a $20 discount over $150 instead of free shipping. Source: https://littlenorthwood.com/products/pages/shipping-payment

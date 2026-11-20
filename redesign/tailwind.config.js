@@ -15,5 +15,8 @@ export default {
       maxWidth: { page: "1440px" },
     },
   },
-  plugins: [],
+  plugins: [
+    // touch screens: lift small controls to the 44px target
+    ({ addVariant }) => { addVariant("pointer-coarse", "@media (pointer: coarse)"); },
+  ],
 };

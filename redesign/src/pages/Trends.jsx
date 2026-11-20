@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Icon from "../components/Icon";
-import { CATS, unit, money, pct } from "../lib/data";
+import { CATS, unit, money, pct, day } from "../lib/data";
 import { loadHistory, useLocal, useWidth } from "../lib/store";
 
 const STORES = ["Healthwick", "ABUniverse", "MyDips", "AgeComfort", "Rearz", "Amazon"];   // fixed colour slots 1-6
@@ -32,7 +32,7 @@ function Card({ title, sub, children, table, legend }) {
       {sub && <p className="mt-0.5 text-sm text-muted">{sub}</p>}
       {legend && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">{legend}</div>}
       <div className="mt-3">{children}</div>
-      {table && <details className="mt-3"><summary className="link cursor-pointer text-sm">Show as table</summary><div className="mt-2 max-h-80 overflow-auto">{table}</div></details>}
+      {table && <details className="mt-3"><summary className="link inline-flex min-h-[44px] cursor-pointer items-center text-sm">Show as table</summary><div className="mt-2 max-h-80 overflow-auto">{table}</div></details>}
     </section>
   );
 }
@@ -54,6 +54,7 @@ function IndexChart({ X }) {
     return { s, n: b.length, pts };
   }).filter(Boolean);
   const ok = series.length && X.dates.length >= 2;
+  const left = [...new Set(X.rows.map(r => r.store))].filter(s => !series.some(x => x.s === s)).sort();
   const W = Math.max(300, W0 || 900), H = W < 600 ? 250 : 320, L = 44, R = W < 600 ? 112 : 132, Tp = 12, B = 30;
   let body = null;
   if (ok) {
@@ -90,6 +91,7 @@ function IndexChart({ X }) {
       legend={series.map(x => <LineKey key={x.s} s={x.s}>{x.s} <span className="num text-muted">({x.n})</span></LineKey>)}
       table={ok && <T head={["Date", ...series.map(x => x.s)]} rows={X.dates.map((d, i) => [d, ...series.map(x => x.pts[i] == null ? "—" : x.pts[i].toFixed(1))])} />}>
       <div ref={ref} className="relative">{ok ? body : <p className="py-10 text-center text-muted">Not enough history for this period yet.</p>}<Tip tip={tip} /></div>
+      {left.length > 0 && <p className="mt-2 text-sm text-muted">Not shown: {left.join(", ")}. None of their listings were tracked from the start of this period, so there is nothing to index against yet.</p>}
     </Card>
   );
 }
@@ -103,7 +105,10 @@ function HBars({ items, diverging, fmt, tick, aria }) {
   let lo = diverging ? Math.min(0, ...vals) : 0, hi = Math.max(0, ...vals);
   if (diverging) { const m = Math.max(Math.abs(lo), Math.abs(hi), 0.5); lo = -m; hi = m; } else hi = hi || 1;
   const xs = v => L + (v - lo) / (hi - lo) * (W - L - R), x0 = xs(0);
-  const ticks = diverging ? [lo, 0, hi] : [0, hi / 2, hi];
+  // round tick values ($0, $2, $4), never odd ones like $2.38
+  const nice = v => { const e = 10 ** Math.floor(Math.log10(v)), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; };
+  const step = diverging ? 0 : nice(hi / 2.5);
+  const ticks = diverging ? [lo, 0, hi] : [...Array(Math.floor(hi / step + 1e-9) + 1).keys()].map(i => i * step);
   return (
     <div ref={ref} className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={aria} className="block max-w-full">
@@ -139,8 +144,8 @@ function DaysChart({ X, days }) {
     <div ref={ref} className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label="Price changes per day" className="block max-w-full">
         {[[y0, "0", "var(--axis)"], [y0 - ys(m), m, "var(--grid)"], [y0 + ys(m), m, "var(--grid)"]].map(([y, t, c], i) => <g key={i}><line x1={L} x2={W - R} y1={y} y2={y} stroke={c} /><text x={L - 8} y={y + 4} textAnchor="end" fontSize="13" className="fill-muted num">{t}</text></g>)}
-        <text x={L + 8} y={Tp + 14} fontSize="13" className="fill-muted">▲ increases</text>
-        <text x={L + 4} y={H - B - 4} fontSize="13" className="fill-muted">▼ decreases</text>
+        <text x={L + 8} y={Tp + 14} fontSize="13" className="fill-muted">Increases</text>
+        <text x={L + 8} y={H - B - 6} fontSize="13" className="fill-muted">Decreases</text>
         {[...Array(nt).keys()].map(k => { const i = nt === 1 ? 0 : Math.round(k * (days.length - 1) / (nt - 1)); return <text key={k} x={k === 0 ? L : k === nt - 1 ? W - R : L + i * bw + bw / 2} y={H - 8} textAnchor={k === 0 ? "start" : k === nt - 1 ? "end" : "middle"} fontSize="13" className="fill-muted num">{days[i].d.slice(5)}</text>; })}
         {days.map((x, i) => { const bx = L + i * bw + gap / 2, w = Math.max(1, bw - gap), rx = Math.min(4, w / 2);
           const show = () => setTip({ ...tipAt(null, L + (i + 0.5) * bw, y0, W), head: x.d, items: [["Increases", String(x.up), "var(--inc)"], ["Decreases", String(x.dn), "var(--dec)"]] });
@@ -156,6 +161,20 @@ function DaysChart({ X, days }) {
   );
 }
 
+const Dir = ({ v }) => v === 0 ? null : <span style={{ color: v > 0 ? "var(--inc)" : "var(--dec)" }} className="inline-flex"><Icon name={v > 0 ? "up" : "down"} size={15} /></span>;
+
+function BrandBars({ brands }) {
+  const [all, setAll] = useState(false);
+  const moved = brands.filter(x => Math.abs(x.value) >= 0.05), still = brands.length - moved.length;
+  return (
+    <>
+      {moved.length ? <HBars items={all ? brands : moved} diverging fmt={pct} tick={v => (v > 0 ? "+" : "") + +v.toFixed(1) + "%"} aria="Average price change by brand" />
+        : <p className="py-6 text-center text-muted">No brand changed price on average in this period.</p>}
+      {still > 0 && <button type="button" className="link mt-2 min-h-[44px] text-sm" onClick={() => setAll(a => !a)}>{all ? `Hide the ${still} unchanged brands` : `Show ${still} brands with no change`}</button>}
+    </>
+  );
+}
+
 function Movers({ title, sub, list, one }) {
   return (
     <section className="card min-w-0 p-4 md:p-5">
@@ -166,7 +185,7 @@ function Movers({ title, sub, list, one }) {
           {list.map(x => (
             <li key={x.r.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-3">
               <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
-                <a className="link font-semibold" href={x.r.url} target="_blank" rel="noopener">{pname(x.r)}<span className="sr-only"> (opens in a new tab)</span></a>
+                <a translate="no" className="link font-semibold" href={x.r.url} target="_blank" rel="noopener">{pname(x.r)}<span className="sr-only"> (opens in a new tab)</span></a>
                 <div className="text-sm text-muted">{x.r.store}, size {x.r.size}, {x.r.pkg.toLowerCase()} of {x.r.qty}{x.r.variant ? `, ${x.r.variant.toLowerCase()}` : ""}</div>
               </div>
               <div className="flex-1 sm:flex-none sm:text-right">
@@ -174,7 +193,7 @@ function Movers({ title, sub, list, one }) {
                 <div className="num text-cap text-muted">{unit(x.p1 / x.r.qty)}/{one}</div>
               </div>
               <div className="w-[76px] text-right">
-                <b className={"num inline-flex items-center gap-0.5 " + (x.c > 0 ? "text-bad" : "text-good")}><Icon name={x.c > 0 ? "up" : "down"} size={14} />{pct(x.c).replace(/^[+−]/, "")}</b>
+                <b className="num inline-flex items-center gap-0.5"><Dir v={x.c} /><span className="sr-only">{x.c > 0 ? "up" : "down"} </span>{pct(x.c).replace(/^[+−]/, "")}</b>
                 {Math.abs(x.c) >= 50 && <div className="text-cap font-semibold text-warn" title="Moves this big are more often a corrected listing than a real price change">Large swing</div>}
               </div>
             </li>
@@ -192,7 +211,7 @@ function Seg({ label, value, options, onChange }) {
       <div className="inline-flex flex-wrap rounded-full border border-line-strong bg-card p-1">
         {options.map(([v, l]) => (
           <button key={v} type="button" aria-pressed={value === v} onClick={() => onChange(v)}
-            className={"min-h-[40px] rounded-full px-4 text-sm font-semibold transition-colors " + (value === v ? "bg-accent text-on-accent" : "text-ink hover:bg-sunken")}>{l}</button>
+            className={"min-h-[44px] rounded-full px-4 text-sm font-semibold transition-colors " + (value === v ? "bg-accent text-on-accent" : "text-ink hover:bg-sunken")}>{l}</button>
         ))}
       </div>
     </div>
@@ -235,10 +254,10 @@ export default function Trends({ data }) {
       return { label: s, value: m, n: v.length, color: scol(s), tip: [[`Median per ${one}`, unit(m)], ["In-stock listings", String(v.length)], ["Lowest", unit(Math.min(...v))], ["Highest", unit(Math.max(...v))]] }; }).filter(Boolean).sort((a, b) => a.value - b.value);
     const mv = X.base.filter(x => x.p1 !== x.p0).map(x => ({ ...x, c: (x.p1 / x.p0 - 1) * 100 }));
     const tiles = [
-      [`Median price per ${one}`, unit(now), `${live.length.toLocaleString()} in-stock listings`, ""],
-      ["Average price change", pct(avg), `Median per ${one}: ${unit(m0)} → ${unit(m1)}`, avg >= 0.05 ? "text-bad" : avg <= -0.05 ? "text-good" : ""],
-      ["Price changes", (up + dn).toLocaleString(), <><span className="text-bad">▲ {up} up</span>, <span className="text-good">▼ {dn} down</span></>, ""],
-      ["Listings that moved", moved.toLocaleString(), `of ${X.base.length.toLocaleString()} tracked through the period`, ""],
+      [`Median shelf price per ${one} today`, unit(now), `Across ${live.length.toLocaleString()} in-stock listings`, ""],
+      ["Average price change", <span className="inline-flex items-center gap-1"><Dir v={Math.abs(avg) < 0.05 ? 0 : avg} />{pct(avg)}</span>, `Across the ${X.base.length.toLocaleString()} listings tracked all period`, ""],
+      ["Price changes recorded", (up + dn).toLocaleString(), <span className="inline-flex flex-wrap items-center gap-x-2"><span className="inline-flex items-center gap-0.5"><Dir v={1} />{up} increases</span><span className="inline-flex items-center gap-0.5"><Dir v={-1} />{dn} decreases</span></span>, ""],
+      ["Listings at a new price", moved.toLocaleString(), `Of ${X.base.length.toLocaleString()}, compared with the start of the period. A listing can change several times.`, ""],
     ];
     content = (
       <div className="grid gap-4 md:gap-5">
@@ -256,7 +275,7 @@ export default function Trends({ data }) {
           <Card title="Average price change by brand" sub="Average change in listing price over the period, brands with at least 5 listings."
             legend={<><Key c="var(--dec)">Cheaper</Key><Key c="var(--inc)">Pricier</Key><Key c="var(--axis)">No change</Key></>}
             table={<T head={["Brand", "Average change", "Listings", "Changed price"]} rows={brands.map(x => [x.label, pct(x.value), x.n, x.moved])} />}>
-            <HBars items={brands} diverging fmt={pct} tick={v => (v > 0 ? "+" : "") + +v.toFixed(1) + "%"} aria="Average price change by brand" />
+            <BrandBars brands={brands} />
           </Card>
           <Card title={`Typical price per ${one} by store`} sub="Median shelf price per piece today, in-stock bags and cases."
             table={<T head={["Store", `Median per ${one}`, "In-stock listings"]} rows={storesM.map(x => [x.label, unit(x.value), x.n])} />}>
@@ -277,16 +296,16 @@ export default function Trends({ data }) {
   }
 
   return (
-    <main id="main" className="mx-auto max-w-page px-4 pb-16 pt-5 md:px-6 md:pt-7 xl:px-8">
+    <main id="main" tabIndex={-1} className="mx-auto max-w-page outline-none px-4 pb-16 pt-5 md:px-6 md:pt-7 xl:px-8">
       <h1 className="font-display text-[26px] font-bold leading-8 tracking-tight md:text-h1">Price trends</h1>
-      <p className="text-muted">{X ? <>{X.start} to {X.end}. <span className="num">{X.base.length.toLocaleString()}</span> listings tracked through the whole period.</> : "Loading price history…"}</p>
+      <p className="text-muted">{X ? <>{day(X.start)} to {day(X.end)}. <span className="num">{X.base.length.toLocaleString()}</span> listings tracked through the whole period.</> : "Loading price history…"}</p>
       <div className="my-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Seg label="Show" value={F.cat} onChange={v => setF(f => ({ ...f, cat: v }))} options={Object.entries(CATS).map(([k, c]) => [k, c.label])} />
         <Seg label="Period" value={F.days} onChange={v => setF(f => ({ ...f, days: v }))} options={[[7, "7 days"], [30, "30 days"], [0, "All time"]]} />
       </div>
       <p className="mb-4 text-sm text-muted">Shelf prices before shipping and tax; sample packs left out.</p>
       {content}
-      <p className="mt-8 max-w-[90ch] text-sm text-muted">Prices come from the daily tracker run; a listing's price is carried forward on days it did not change. A move of 50% or more is marked "Large swing": it is more often a corrected listing than a real price change. Index and brand averages use only listings tracked since the start of the period.</p>
+      <p className="mt-8 max-w-[70ch] text-sm text-muted">Prices come from the daily tracker run; a listing's price is carried forward on days it did not change. A move of 50% or more is marked "Large swing": it is more often a corrected listing than a real price change. Index and brand averages use only listings tracked since the start of the period.</p>
     </main>
   );
 }

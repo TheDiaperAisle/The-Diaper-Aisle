@@ -40,6 +40,10 @@
   body { @apply bg-bg text-ink font-sans text-base antialiased; font-feature-settings: "tnum" 0; }
   :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
   a, button, summary, label, select, [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  html { scrollbar-color: rgb(var(--line-strong)) transparent; }
+  input, select { caret-color: rgb(var(--accent)); }
+  p { text-wrap: pretty; }
+  h1, h2, h3 { text-wrap: balance; }
   ::selection { background: rgb(var(--brand-sky)); color: rgb(29 21 48); }
 }
 
@@ -49,7 +53,7 @@
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-full font-semibold text-sm min-h-[44px] px-5 transition-colors duration-150 cursor-pointer select-none; }
   .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent/90; }
   .btn-ghost { @apply btn border border-line-strong text-ink bg-card hover:border-accent hover:text-accent; }
-  .chip { @apply inline-flex items-center gap-1.5 rounded-full border text-sm font-medium min-h-[36px] px-3.5 transition-colors duration-150 cursor-pointer; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border text-sm font-medium min-h-[36px] px-3.5 transition-colors duration-150 cursor-pointer pointer-coarse:min-h-[44px]; }
   .input { @apply w-full min-w-0 rounded-lg border border-line-strong bg-card text-ink text-[16px] px-3 min-h-[44px] placeholder:text-muted; }   /* 16px: iOS does not zoom on focus */
   .link { @apply text-accent font-semibold underline-offset-2 hover:underline; }
 }

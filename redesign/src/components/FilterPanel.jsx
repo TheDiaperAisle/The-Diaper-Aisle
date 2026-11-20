@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import Icon from "./Icon";
 import { FILTERS, BL, PROVINCES, filterOptions } from "../lib/data";
 
@@ -18,6 +18,9 @@ function Group({ f, cat, rows, value, onChange, defaultOpen }) {
     .filter(([v, , n]) => n || v === BL || value.includes(v));
   const set = new Set(value);
   const toggle = v => onChange(set.has(v) ? value.filter(x => x !== v) : [...value, v]);
+  const [all, setAll] = useState(false);
+  const SHOW = 8;   // long lists show 8, then "Show all": no scroll box inside the scrolling sheet
+  const shown = all || opts.length <= SHOW + 2 ? opts : opts.filter(([v], i) => i < SHOW || set.has(v));
   return (
     <details className="group border-t border-line" open={defaultOpen || value.length > 0}>
       <summary className="flex min-h-[48px] cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
@@ -27,10 +30,10 @@ function Group({ f, cat, rows, value, onChange, defaultOpen }) {
       </summary>
       <div className="pb-3">
         {value.length > 0 && <button type="button" className="link mb-1 text-sm" onClick={() => onChange([])}>Clear {f.label.toLowerCase()}</button>}
-        <ul className="max-h-64 overflow-y-auto pr-1" role="group" aria-label={f.label}>
-          {opts.map(([v, l, n]) => (
+        <ul role="group" aria-label={f.label}>
+          {shown.map(([v, l, n]) => (
             <li key={v}>
-              <label htmlFor={id + v} className={"flex min-h-[40px] cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-sunken " + (v === BL ? "italic text-muted" : "")}>
+              <label htmlFor={id + v} className={"flex min-h-[40px] cursor-pointer pointer-coarse:min-h-[44px] items-center gap-3 rounded-lg px-2 hover:bg-sunken " + (v === BL ? "italic text-muted" : "")}>
                 <input id={id + v} type="checkbox" checked={set.has(v)} onChange={() => toggle(v)} className="h-[18px] w-[18px] shrink-0 accent-[rgb(var(--accent))]" />
                 <span className="flex-1 text-sm">{l}</span>
                 <span className="num text-cap text-muted">{n.toLocaleString()}</span>
@@ -38,6 +41,7 @@ function Group({ f, cat, rows, value, onChange, defaultOpen }) {
             </li>
           ))}
         </ul>
+        {shown.length < opts.length && <button type="button" className="link mt-1 min-h-[44px] text-sm" onClick={() => setAll(true)}>Show all {opts.length} {f.label.toLowerCase()} options</button>}
       </div>
     </details>
   );
@@ -64,20 +68,20 @@ export default function FilterPanel({ cat, rows, F, set, prov, setProv, stores }
         <div className="mb-2 flex min-h-[28px] items-center justify-between font-semibold"><span aria-hidden="true">Stores</span>
           {picked.size > 0 && <button type="button" className="link text-sm" onClick={() => set({ stores: [] })}>Show all stores</button>}</div>
         <div className="flex flex-wrap gap-2">
-          {stores.map(n => {
+          {stores.filter(n => counts[n] || picked.has(n)).map(n => {
             const on = picked.has(n);
             return (
               <button key={n} type="button" aria-pressed={on}
                 onClick={() => set({ stores: on ? F.stores.filter(x => x !== n) : [...F.stores, n] })}
-                className={"chip " + (on ? "border-accent bg-accent text-on-accent" : (counts[n] ? "border-line-strong" : "border-dashed border-line-strong text-muted") + " bg-card text-ink hover:border-accent")}>
+                className={"chip " + (on ? "border-accent bg-accent text-on-accent" : "border-line-strong bg-card text-ink hover:border-accent")}>
                 {n} <span className={"num text-cap " + (on ? "opacity-90" : "text-muted")}>{counts[n] || 0}</span>
               </button>
             );
           })}
         </div>
       </fieldset>
-      {FILTERS.filter(f => !(f.noBooster && cat === "booster")).map((f, i) => (
-        <Group key={f.id + cat} f={f} cat={cat} rows={rows} value={F[f.id] || []} defaultOpen={i < 2} onChange={v => set({ [f.id]: v })} />
+      {FILTERS.filter(f => !(f.noBooster && cat === "booster") && !(f.chipsOutside && cat !== "booster")).map((f, i) => (
+        <Group key={f.id + cat} f={f} cat={cat} rows={rows} value={F[f.id] || []} defaultOpen={i === 0} onChange={v => set({ [f.id]: v })} />
       ))}
     </div>
   );

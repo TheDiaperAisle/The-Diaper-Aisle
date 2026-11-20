@@ -84,3 +84,19 @@ Alignment: everything left-aligned; numbers right-aligned in table columns only.
 
 ### Check against the brief
 Better visual design (one memorable, subject-specific element; less chrome), inside the design system (tokens unchanged, decisions logged in DESIGN-SYSTEM.md §0), numbers and small text readable (16px body, sentence-case labels, 13px floor kept), every page (tracker tabs, card, table, dialog, Trends).
+
+## Pass 3: impeccable critique (25/40) → fixes → polish → web-design-guidelines → screenshots
+
+Critique archive: `../.impeccable/critique/`. Fixed (owner chose "all P1 + P2" and "size chips above results"):
+
+| Critique issue | Fix |
+|---|---|
+| P1 Size buried under a 27-item Brand list | "Your size" chips above the results (one tap; shared by Diapers and Pull-ups; shown in the results line). Filter groups reordered Waist, Package, Capacity, Brand, Colour; only the first opens by default; long lists show 8 then "Show all"; no scroll box inside the sheet |
+| P1 Delivered prices not like for like | "+ shipping at checkout" rows sort after every known delivered price; badge reads "Lowest of N", single-store rows say "Only store"; pop-up size chips use the delivered price |
+| P1 Sort menu breaks at zoom and on phones | Search gets its own row below 1024px; sort keeps a 12rem minimum; options grouped (Price / Product / Name) and named with the tab's noun; on phones the direction toggle moves into the results line ("low to high ⇅"); toolbar stops sticking on short screens |
+| P2 Keyboard and screen-reader path; Back | Skip links go to the results (and "Skip filters" in the rail) without touching the URL hash; result count announced once input settles; the product pop-up is a history entry, so Back closes it |
+| P2 Trends figures seem to contradict | Each figure states its scope; one median; unchanged brands behind "Show N brands with no change"; direction arrows use the chart blue/red; stores missing from the index are named with the reason |
+| Minor | Full product names ("FitRight Ultra"); "Compare N stores" is a real button; "Store page" / "Buy at {store}" instead of "View"; stores with no listings hidden; 44px touch targets on touch screens; "What these prices mean" link next to the results opens the method notes, which now come before the feedback block; fact tiles in the pop-up became a ruled list with the Buy button near the top |
+
+Polish and web-design-guidelines fixes: themed scrollbars and caret; `Intl` currency and date formats; search input name, `…` placeholder, no spellcheck; curly quotes; `overscroll-behavior: contain` on the pop-up and filter sheet; thumbnail width/height; `translate="no"` on product and brand names; `content-visibility` on cards; round chart ticks; `text-wrap: pretty` on paragraphs.
+Accepted exceptions: filters live in browser storage, not the URL (the hash is the tab route and shared links only keep a plain `#name`); headings stay in sentence case (the guidelines suggest Title Case; the design system chose sentence case for readability).

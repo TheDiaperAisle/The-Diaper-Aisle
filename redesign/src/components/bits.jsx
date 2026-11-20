@@ -38,11 +38,13 @@ export function ShelfLabel({ r, one, size = "md", label }) {
   );
 }
 
-export const LowestBadge = () => (
-  <Badge tone="good" title="Cheapest in-stock delivered price for this product and size across stores">
-    <Icon name="check" size={14} /> Lowest
-  </Badge>
+// "Lowest of 3": cheapest in-stock delivered price for this product and size among the stores that sell it
+export const LowestBadge = ({ n }) => (
+  <Badge tone="good"><Icon name="check" size={14} /> Lowest of {n}</Badge>
 );
+// a listing with no other store to compare against says so, so a missing badge is never ambiguous
+export const CompareNote = ({ r }) => r.lowest ? <LowestBadge n={r.nst} />
+  : r.nst === 1 ? <span className="text-cap text-muted">Only store</span> : null;
 
 // the note under a delivered price
 export function ShipNote({ r, className = "" }) {
@@ -114,7 +116,7 @@ function BigImg({ t, alt = "", className }) {
 export function Thumb({ r, size = 56 }) {
   const ctx = useContext(ImgCtx);
   const src = ctx?.thumbs[r.t];
-  const name = `${r.brand ? r.brand + " " : ""}${r.dname}`;
+  const name = r.fname;
   const box = { width: size, height: size };
   if (!src) return <div style={box} className="shrink-0 rounded-lg border border-line bg-sunken" aria-hidden="true" />;
   return (
@@ -122,7 +124,7 @@ export function Thumb({ r, size = 56 }) {
       className="shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-line bg-white"
       onClick={e => { e.stopPropagation(); ctx.open(r.t, name); }}
       onMouseEnter={e => ctx.hover(r.t, e.currentTarget.getBoundingClientRect())} onMouseLeave={() => ctx.hover(null)}>
-      <img src={src} alt="" loading="lazy" className="h-full w-full object-contain" />
+      <img src={src} alt="" loading="lazy" width={size} height={size} className="h-full w-full object-contain" />
     </button>
   );
 }

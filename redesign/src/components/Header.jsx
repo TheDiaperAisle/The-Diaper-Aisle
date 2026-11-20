@@ -4,6 +4,9 @@ import logo from "../../../assets/tda-logo.webp";
 
 const NAV = [["diapers", "diaper"], ["pullups", "pullup"], ["boosters", "booster"]];
 
+// the URL hash is the route, so skip links move focus instead of changing the hash
+export const skip = e => { e.preventDefault(); const el = document.getElementById("results") || document.getElementById("main"); el?.focus(); el?.scrollIntoView({ block: "start" }); };
+
 export default function Header({ route, data }) {
   const m = data.meta;
   const when = m ? new Date(m.lastRun).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
@@ -13,12 +16,12 @@ export default function Header({ route, data }) {
   const bad = stores.filter(([, s]) => !s.ok);
   return (
     <header className="bg-brand-ink text-white">
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-[#1d1530]">Skip to results</a>
+      <a href="#results" onClick={skip} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-[#1d1530]">Skip to results</a>
       <div className="mx-auto max-w-page px-4 md:px-6 xl:px-8 pt-4 pb-3 md:pt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
         <a href="#diapers" className="flex items-center gap-3 md:gap-4 min-w-0 rounded-lg">
           <img src={logo} alt="" width="64" height="62" className="w-12 h-auto md:w-16" />
           <span className="min-w-0">
-            <span className="block font-display font-bold uppercase leading-none text-[22px] md:text-[28px] tracking-tight">
+            <span translate="no" className="block font-display font-bold uppercase leading-none text-[22px] md:text-[28px] tracking-tight">
               The Diaper Aisle
             </span>
             <span className="block text-sm md:text-base text-brand-sky mt-1">Canadian adult diaper prices, checked daily</span>
@@ -29,7 +32,7 @@ export default function Header({ route, data }) {
           {data.status === "error" && <span className="rounded-full bg-[#a8302c] px-3 py-1.5 font-semibold">Prices could not be loaded. Reload to retry.</span>}
           {when && (
             <details className="group relative">
-              <summary className="flex min-h-[36px] cursor-pointer list-none items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 hover:bg-white/15 [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-[36px] pointer-coarse:min-h-[44px] cursor-pointer list-none items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 hover:bg-white/15 [&::-webkit-details-marker]:hidden">
                 <span className={"h-2.5 w-2.5 rounded-full " + (bad.length ? "bg-[#eb665d]" : "bg-[#7fc678]")} aria-hidden="true" />
                 <span className="whitespace-nowrap">Updated {when}</span>
                 <span className={"text-brand-sky " + (bad.length ? "" : "hidden sm:inline")}>{bad.length ? `${bad.length} of ${stores.length} stores not refreshed` : `${stores.length} stores checked`}</span>

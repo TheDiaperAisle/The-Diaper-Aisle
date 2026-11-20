@@ -1,10 +1,10 @@
 import Icon from "./Icon";
-import { Badge, StockBadges, LowestBadge, ShipNote, Delta, Dash, Thumb, ShelfLabel } from "./bits";
+import { Badge, StockBadges, CompareNote, ShipNote, Delta, Dash, Thumb, ShelfLabel } from "./bits";
 import { unit, money, inch, ASC_FIRST } from "../lib/data";
 
 const Name = ({ r }) => (
   <>
-    <span className="font-semibold text-ink">{r.dname}</span>
+    <span translate="no" className="font-semibold text-ink">{r.fname}</span>
     {r.variant && <span className="ml-1.5 align-[1px]"><Badge tone="outline">{r.variant}</Badge></span>}
     {r.cat === "booster" && r.size !== "One size" && <span className="ml-1.5 align-[1px]"><Badge tone="outline">Size {r.size}</Badge></span>}
   </>
@@ -15,7 +15,7 @@ const sizeText = r => r.cat === "booster"
 const waistText = r => r.waist ? `${r.waist[0]}–${r.waist[1]}" waist` : null;
 const StoreLink = ({ r, className = "" }) => (
   <a href={r.url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className={"link inline-flex items-center gap-1 whitespace-nowrap " + className}>
-    View at {r.store}<Icon name="ext" size={15} /><span className="sr-only"> (opens in a new tab)</span>
+    Buy at {r.store}<Icon name="ext" size={15} /><span className="sr-only"> (opens in a new tab)</span>
   </a>
 );
 
@@ -60,14 +60,13 @@ export function ResultsTable({ list, cat, one, sort, onSort, onOpen }) {
                   <Thumb r={r} size={52} />
                   <div className="min-w-0">
                     <button type="button" onClick={e => { e.stopPropagation(); onOpen(r.id); }} className="rounded text-left leading-snug underline-offset-2 hover:underline"><Name r={r} /></button>
-                    <div className="mt-0.5 text-sm text-muted">{r.brand}</div>
                     {(!r.avail || r.stale) && <div className="mt-1 flex flex-wrap gap-1"><StockBadges r={r} /></div>}
                   </div>
                 </div>
               </td>
               <td className="px-2.5 py-3">
                 <div className="whitespace-nowrap">{r.store}</div>
-                {r.nst > 1 && <div className="whitespace-nowrap text-sm font-semibold text-accent">{r.nst} stores</div>}
+                {r.nst > 1 && <button type="button" onClick={e => { e.stopPropagation(); onOpen(r.id); }} className="link whitespace-nowrap text-sm">Compare {r.nst} stores</button>}
               </td>
               <td className="px-2.5 py-3">
                 {sizeText(r) ? <span className="num whitespace-nowrap font-medium">{sizeText(r)}</span> : <Dash />}
@@ -85,16 +84,16 @@ export function ResultsTable({ list, cat, one, sort, onSort, onOpen }) {
               <td className="bg-accent-soft/60 px-2.5 py-3 text-right">
                 <div className="num whitespace-nowrap text-price font-bold">{r.dpd != null ? unit(r.dpd) : <Dash title="No shipping data" />}</div>
                 <ShipNote r={r} className="block whitespace-nowrap" />
-                {r.lowest && <div className="mt-1"><LowestBadge /></div>}
+                <div className="mt-1"><CompareNote r={r} /></div>
               </td>
               <td className="whitespace-nowrap px-2.5 py-3 text-right">
                 <div className="num">{r.cap ? r.cap.toLocaleString() + " mL" : <Dash title="No store publishes a capacity" />}</div>
                 {r.dpl != null && <div className="num text-sm text-muted">{money(r.dpl)}/L</div>}
               </td>
               <td className="py-2 pl-1 pr-3 text-right">
-                <a href={r.url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} title={`View at ${r.store}`}
+                <a href={r.url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}
                   className="inline-flex min-h-[44px] items-center gap-1 whitespace-nowrap rounded-full px-2 text-sm font-semibold text-accent hover:bg-accent-soft">
-                  View<Icon name="ext" size={15} /><span className="sr-only"> {r.dname} at {r.store} (opens in a new tab)</span>
+                  Store page<Icon name="ext" size={15} /><span className="sr-only"> for {r.fname} at {r.store} (opens in a new tab)</span>
                 </a>
               </td>
             </tr>
@@ -119,15 +118,14 @@ export function ResultCards({ list, one, onOpen }) {
   return (
     <ul className="grid gap-3 md:grid-cols-2">
       {list.map(r => (
-        <li key={r.id} className="card flex flex-col overflow-hidden">
+        <li key={r.id} className="card flex flex-col overflow-hidden [contain-intrinsic-size:auto_300px] [content-visibility:auto]">
           <div className="flex gap-3 p-3 pb-2">
             <Thumb r={r} size={64} />
             <div className="min-w-0 flex-1">
-              <button type="button" onClick={() => onOpen(r.id)} className="block text-left leading-snug rounded">
+              <button type="button" onClick={() => onOpen(r.id)} className="block min-h-[44px] w-full rounded text-left leading-snug">
                 <Name r={r} />
               </button>
-              {r.brand && <div className="mt-0.5 text-sm text-muted">{r.brand}</div>}
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"><span className="font-medium">{r.store}</span>{r.nst > 1 && <span className="font-semibold text-accent">{r.nst} stores</span>}{r.lowest && <LowestBadge />}<StockBadges r={r} /></div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"><span className="font-medium">{r.store}</span><CompareNote r={r} /><StockBadges r={r} /></div>
             </div>
           </div>
           <div className="mx-3 flex items-start justify-between gap-3">

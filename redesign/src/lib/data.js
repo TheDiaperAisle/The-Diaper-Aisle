@@ -26,12 +26,12 @@ export const WAIST_BANDS = [[0,29,'Up to 29"'],[30,35,'30–35"'],[36,41,'36–4
 export const BL = "__blank";
 // multi-select filters: key in saved state, label, "all" text, blank label, matcher
 export const FILTERS = [
-  { id: "b", label: "Brand", all: "All brands", blank: "Blank (no brand)", match: (r, v) => v === BL ? !r.brand : r.brand === v },
-  { id: "sz", label: "Size", all: "All sizes", blank: "Blank (no size)", match: (r, v) => v === BL ? (r.cat === "booster" ? r.dl == null : r.size === "One size") : r.size === v },
-  { id: "p", label: "Package", all: "All packages", blank: "Blank (no pack count)", match: (r, v) => v === BL ? !r.qty : r.pkg === v },
-  { id: "vr", label: "Colour / scent", all: "All variants", blank: "Blank (no colour or scent)", match: (r, v) => v === BL ? !r.variant : r.variant === v },
-  { id: "a", label: "Capacity", all: "Any capacity", blank: "Blank (no capacity)", match: (r, v) => { if (v === BL) return !r.cap; const [lo, hi] = v.split("-").map(Number); return r.cap >= lo && (!hi || r.cap <= hi); } },
+  { id: "sz", label: "Size", all: "All sizes", blank: "Blank (no size)", chipsOutside: true, match: (r, v) => v === BL ? (r.cat === "booster" ? r.dl == null : r.size === "One size") : r.size === v },
   { id: "w", label: "Waist / hip", all: "Any waist", blank: "Blank (no waist size)", noBooster: true, match: (r, v) => { if (v === BL) return !r.waist; if (!r.waist) return false; const [lo, hi] = v.split("-").map(Number); return r.waist[0] <= hi && r.waist[1] >= lo; } },
+  { id: "p", label: "Package", all: "All packages", blank: "Blank (no pack count)", match: (r, v) => v === BL ? !r.qty : r.pkg === v },
+  { id: "a", label: "Capacity", all: "Any capacity", blank: "Blank (no capacity)", match: (r, v) => { if (v === BL) return !r.cap; const [lo, hi] = v.split("-").map(Number); return r.cap >= lo && (!hi || r.cap <= hi); } },
+  { id: "b", label: "Brand", all: "All brands", blank: "Blank (no brand)", match: (r, v) => v === BL ? !r.brand : r.brand === v },
+  { id: "vr", label: "Colour / scent", all: "All variants", blank: "Blank (no colour or scent)", match: (r, v) => v === BL ? !r.variant : r.variant === v },
 ];
 export function filterOptions(id, cat, rows) {
   if (id === "b") return [...new Set(rows.map(r => r.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b)).map(v => [v, v]);
@@ -46,8 +46,12 @@ export function filterOptions(id, cat, rows) {
 export const BLANK = () => ({ q: "", b: [], sz: [], p: [], a: [], vr: [], w: [], s: false, best: false, stores: [], sort: { k: "dpd", dir: "asc" } });
 
 // formatting
-export const money = v => v == null ? "—" : "$" + v.toFixed(2);
-export const unit = v => v == null ? "—" : "$" + v.toFixed(v < 1 ? 3 : 2);
+const CAD2 = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const CAD3 = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 3, maximumFractionDigits: 3 });
+export const money = v => v == null ? "—" : CAD2.format(v);
+export const unit = v => v == null ? "—" : (v < 1 ? CAD3 : CAD2).format(v);   // under $1 shows 3 decimals: $0.546
+const DAY = new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+export const day = d => d ? DAY.format(new Date(d + "T12:00:00Z")) : "—";   // "Oct 31, 2026"
 export const inch = v => (Math.round(v * 100) / 100) + '"';
 export const pct = v => (v >= 0.05 ? "+" : v <= -0.05 ? "−" : "") + Math.abs(v).toFixed(1) + "%";
 const titleCase = s => /[a-z]/.test(s) ? s : s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAm Pm\b/, "AM PM");
@@ -83,6 +87,8 @@ export function prepareRows(docs) {
   all.forEach(r => {
     r.cat = r.cat || (r.style === "Pull-up" ? "pullup" : "diaper");
     r.dname = r.line || titleCase(r.name); r.ck = r.ck || r.id;
+    // full name for display: "FitRight Ultra", not "Ultra" with the brand on another line
+    r.fname = !r.brand || r.dname.toLowerCase().startsWith(r.brand.toLowerCase()) ? r.dname : `${r.brand} ${r.dname}`;
     const dm = r.dims && r.dims.match(/([\d.]+)\D+([\d.]+)/);
     if (dm) { const a = +dm[1], b = +dm[2]; r.dl = Math.max(a, b); r.dw = Math.min(a, b); }
     r.wlo = r.waist ? r.waist[0] : null;
@@ -125,15 +131,19 @@ export function filterRows(rows, F, cat) {
   return list;
 }
 
-export const SORTS = [
-  ["dpd", "Delivered $/piece"], ["ppd", "Shelf $/piece"], ["dpl", "Delivered $/litre"], ["price", "Package price"],
-  ["cap", "Capacity"], ["name", "Product name"], ["brand", "Brand"], ["store", "Store"], ["size", "Size"], ["wlo", "Waist"],
-  ["pkg", "Package"], ["qty", "Pieces per package"], ["nst", "Stores selling it"], ["dl", "Length (boosters)"], ["dw", "Width (boosters)"],
+// sort options, grouped; labels use the tab's noun ("per diaper")
+export const sortGroups = one => [
+  ["Price", [["dpd", `Delivered per ${one}`], ["ppd", `Shelf price per ${one}`], ["dpl", "Delivered per litre of capacity"], ["price", "Pack price"]]],
+  ["Product", [["cap", "Capacity"], ["size", "Size"], ["wlo", "Waist"], ["dl", "Length"], ["dw", "Width"], ["qty", "Pieces per pack"], ["pkg", "Pack type"]]],
+  ["Name", [["name", "Product name"], ["brand", "Brand"], ["store", "Store"], ["nst", "Number of stores"]]],
 ];
+export const SORTS = []; // kept for imports; use sortGroups
 export const ASC_FIRST = ["name","brand","store","size","wlo","pkg","ppd","dpd","ppl","dpl","price","qty"];
 export function compare(sort) {
   const { k, dir } = sort, m = dir === "asc" ? 1 : -1;
   return (a, b) => {
+    // "+ shipping at checkout" rows leave shipping out, so they never rank among real delivered prices
+    if ((k === "dpd" || k === "dpl") && a.shipq !== b.shipq) return a.shipq ? 1 : -1;
     let x = a[k], y = b[k];
     if (k === "size") { x = SIZE_ORDER.indexOf(x); y = SIZE_ORDER.indexOf(y); }
     if (k === "pkg") { x = PKG_RANK[x]; y = PKG_RANK[y]; }

@@ -24,8 +24,14 @@ STORES = [
     # Walmart.ca blocks automated reading, so its prices are entered by hand from the owner's checks
     # (pipeline/manual_prices.json, owner 2026-11-02, about every 2 weeks)
     ("Walmart", "https://www.walmart.ca"),
+    # Little Northwood (owner 2026-11-20): its own-brand diapers, an Ecwid (Lightspeed) store read through the
+    # storefront API its own pages use (catalog listing + per-size price and stock)
+    ("Little Northwood", "https://littlenorthwood.com"),
 ]
-VIA = {"Rearz": "bigcommerce", "Well.ca": "wellca", "Walmart": "manual"}
+VIA = {"Rearz": "bigcommerce", "Well.ca": "wellca", "Walmart": "manual", "Little Northwood": "ecwid"}
+ECWID_STORE = {"Little Northwood": 131538540}
+ECWID_API = "https://app.ecwid.com/storefront/api/v1"
+ECWID_CATEGORIES = r"diaper|couche|booster|pull"   # categories read; the rest (plush, onesies, pins) are not diapers
 MANUAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manual_prices.json")
 MANUAL_MAX_AGE = 21   # days: a hand-entered price older than this is dropped rather than shown as current
 WELL_SEARCHES = ["goodnites"]   # words matched in Well.ca product addresses
@@ -238,6 +244,75 @@ def fetch_wellca(base, delay=0.5):
     return out
 
 
+def _ecwid(store_id, path, body):
+    req = urllib.request.Request(f"{ECWID_API}/{store_id}/{path}", data=json.dumps(body).encode(),
+                                 headers=dict(UA, **{"Content-Type": "application/json"}), method="POST")
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)
+
+
+def fetch_ecwid(base, store, delay=0.5):
+    """An Ecwid store's diaper products as Shopify-shaped dicts: the diaper categories' listings, each product's
+    description, and per size (option choice) its own price and stock from the storefront's 'overrides' lookup."""
+    sid = ECWID_STORE[store]
+    urlp = {"urlType": "CLEAN_URL", "baseUrl": "/products", "canonicalBaseUrl": f"{base}/products", "isCleanUrls": True,
+            "isCanonicalUrlsEnabled": True, "isSlugsWithoutIds": True, "isTrailingSlash": False}
+
+    def listing(cat):
+        res, off = [], 0
+        while off < 1000:
+            d = _ecwid(sid, "catalog", {"categoryViewMode": "COLLAPSED", "lang": "en", "parentCategoryId": cat,
+                                        "pagination": {"offset": off, "limit": 60}, "urlParams": urlp})
+            groups = (d.get("expandedCategories") or []) + (d.get("collapsedCategories") or [])
+            g = next((x for x in groups if (x.get("categoryInfo") or {}).get("id") == cat), groups[0] if groups else {})
+            res.append(g)
+            if not g.get("hasMoreProducts"):
+                break
+            off += 60
+        return res
+
+    root = listing(0)[0]
+    cats = [(c["id"], c["name"]) for c in root.get("subcategories") or [] if re.search(ECWID_CATEGORIES, c["name"], re.I)]
+    out = []
+    for cid, cname in cats:
+        for g in listing(cid):
+            for p in g.get("products") or []:
+                pid = p["identifier"]["productId"]
+                slug = (p.get("slugs") or {}).get("forRouteWithoutId") or str(pid)
+                full = _ecwid(sid, "catalog/product", {"lang": "en", "productIdentifier": {"type": "PUBLISHED", "productId": pid},
+                                                        "urlParams": urlp})
+                time.sleep(delay)
+                ov = p["defaultOptionsOverrides"]
+                img = ((ov.get("variationOverrides") or {}).get("mediaItems") or [{}])[0].get("image400pxUrl")
+                vendor = next((a["value"] for a in (ov.get("variationOverrides") or {}).get("attributes") or []
+                               if a.get("type") == "BRAND"), store)
+                opts = (ov.get("pricesOverrides") or {}).get("optionsChoicesWithModifiersAndTaxes") or []
+                size_opt = next((o for o in opts if re.search(r"size|taille", o["optionId"], re.I)), None)
+                choices = [c["choiceId"] for c in (size_opt or {}).get("choices", [])] or [None]
+                variants = []
+                for ch in choices:
+                    body = {"productIdentifier": {"type": "PUBLISHED", "productId": pid}, "lang": "en"}
+                    if ch is not None:
+                        body["selectedOptions"] = {size_opt["optionId"]: {"type": "DROPDOWN", "choice": ch}}
+                    o = _ecwid(sid, "catalog/product/overrides", body)
+                    time.sleep(delay)
+                    vo, po = o.get("variationOverrides") or {}, o.get("pricesOverrides") or {}
+                    price = po.get("basePriceWithModifiersDiscount") or po.get("basePrice")
+                    if price is None:
+                        continue
+                    variants.append({"id": vo.get("sku") or f"{pid}-{ch}", "price": f"{float(price):.2f}",
+                                     "available": not vo.get("isSoldOut"), "option1": ch or "One size"})
+                if not variants:
+                    continue
+                out.append({"title": p["name"], "handle": slug, "vendor": vendor, "product_type": cname, "tags": [],
+                            "body_html": full.get("description") or "", "images": [{"src": img}] if img else [],
+                            "options": [{"name": "Size", "values": [v["option1"] for v in variants]}],
+                            "variants": variants, "_url": f"{base}/products/{slug}"})
+    if not out:
+        raise RuntimeError(f"no diaper products found on {store}")
+    return out
+
+
 def fetch_manual(store):
     """Hand-entered listings for a store that cannot be read automatically, as Shopify-shaped dicts.
     manual_prices.json: {"Walmart": {"items": [{"id", "url", "title", "size", "count", "price", "in_stock", "checked",
@@ -267,6 +342,8 @@ def fetch_store(base, via=None, store=None):
         return fetch_manual(store)
     if via == "wellca":
         return fetch_wellca(base)
+    if via == "ecwid":
+        return fetch_ecwid(base, store)
     if via == "bigcommerce":
         return fetch_bigcommerce(base)
     out, page = [], 1
@@ -775,6 +852,8 @@ QTY_MANUAL = {
 
 # Display names for merged products whose store names differ (old vs current maker name). Keyed by pid.
 LINE_NAME = {
+    "diaper|little northwood|backed cloth little quest": "Little Quest Cloth-Backed",
+    "diaper|little northwood|backed little plastic quest": "Little Quest Plastic-Backed",
     "diaper|abena|abri comfort form": "Abri-Form Comfort",
     "pullup|abena|3 abri flex premium": "Abri-Flex Premium Underwear",   # AgeComfort 'ABENA ABRIFLEX PULL UPS' (all-caps title)
     "diaper|little for big|back beauty cloth little": "Little Beauty",   # owner 2026-11-01

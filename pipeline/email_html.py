@@ -318,7 +318,7 @@ def render(d, date, logo_src="cid:att0", deals=None):
 
   <!-- footer -->
   <tr><td style="background-color:{FROST};border-top:2px solid {MIST};padding:16px 32px;font-family:{FONT};font-size:12px;line-height:18px;color:{TEAL};text-align:center;">
-    Prices in CAD from Healthwick, ABUniverse, MyDips, AgeComfort, Rearz, Amazon and Well.ca, checked every morning, and Walmart, checked every two weeks. Delivered prices include shipping to Ontario.<br>
+    Prices in CAD from Healthwick, ABUniverse, MyDips, AgeComfort, Rearz, Amazon, Well.ca and Little Northwood, checked every morning, and Walmart, checked every two weeks. Delivered prices include shipping to Ontario.<br>
     <a href="{TRACKER}" style="color:{TEAL};">{TRACKER}</a>
   </td></tr>
 </table>

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Icon from "./Icon";
-import { Badge, LowestBadge, ShipNote, Thumb } from "./bits";
+import { Badge, LowestBadge, ShipNote, Thumb, ShelfLabel } from "./bits";
 import { CATS, SHIP, SIZE_ORDER, FEEDBACK, PROVINCES, unit, money, inch } from "../lib/data";
 import { loadHistory, useWidth } from "../lib/store";
 
@@ -63,7 +63,7 @@ export default function ProductDialog({ r, data, prov, onOpen, onClose }) {
             <div className="mt-1 flex flex-wrap gap-1.5">
               {r.variant && <Badge tone="outline">{r.variant}</Badge>}
               <Badge>{r.store}</Badge>
-              {r.avail ? <Badge tone="good">In stock</Badge> : <Badge tone="bad">{r.bo ? "Out of stock · backorder" : "Out of stock"}</Badge>}
+              {r.avail ? <Badge tone="good">In stock</Badge> : <Badge tone="bad">{r.bo ? "Backorder" : "Out of stock"}</Badge>}
               {r.lowest && <LowestBadge />}
             </div>
           </div>
@@ -71,16 +71,13 @@ export default function ProductDialog({ r, data, prov, onOpen, onClose }) {
         </div>
 
         <div className="grid gap-6 px-4 py-4 md:px-6 md:py-5">
-          <div className="flex flex-wrap items-end justify-between gap-4 rounded-xl border-l-4 border-brand-blue bg-accent-soft/70 px-4 py-3">
-            <div>
-              <div className="text-sm text-muted">Delivered to {provName}, per {one}</div>
-              <div className="num text-[30px] font-bold leading-9">{r.dpd != null ? unit(r.dpd) : "—"}</div>
-              <ShipNote r={r} className="text-sm" />
-            </div>
-            <div className="sm:text-right">
-              <div className="num text-h3 font-semibold">{money(r.price)}</div>
-              <div className="text-sm text-muted">{r.pkg}{r.qty ? ` of ${r.qty}` : ""} · {unit(r.ppd)}/{one} shelf</div>
-            </div>
+          <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
+            <ShelfLabel r={r} one={one} size="lg" label={`Delivered to ${provName}, per ${one}`} />
+            <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1 pt-1 text-base">
+              <dt className="text-muted">Pack price</dt><dd className="num text-right font-semibold">{money(r.price)}</dd>
+              <dt className="text-muted">Package</dt><dd className="text-right">{r.pkg}{r.qty ? ` of ${r.qty}` : ""}</dd>
+              <dt className="text-muted">Shelf, per {one}</dt><dd className="num text-right">{unit(r.ppd)}</dd>
+            </dl>
           </div>
 
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -95,7 +92,7 @@ export default function ProductDialog({ r, data, prov, onOpen, onClose }) {
 
           {sizes.length > 1 && (
             <section aria-labelledby="pd-sizes">
-              <h3 id="pd-sizes" className="mb-2 font-semibold">Other sizes <span className="font-normal text-muted text-sm">· cheapest shelf price per {one}</span></h3>
+              <h3 id="pd-sizes" className="font-semibold">Other sizes</h3><p className="mb-2 text-sm text-muted">Cheapest shelf price per {one} in each size</p>
               <div className="flex flex-wrap gap-2">
                 {sizes.map(sz => { const p = pick(sz), on = sz === r.size; return (
                   <button key={sz} type="button" aria-current={on || undefined} onClick={() => onOpen(p.id)}
@@ -107,7 +104,8 @@ export default function ProductDialog({ r, data, prov, onOpen, onClose }) {
           )}
 
           <section aria-labelledby="pd-cmp">
-            <h3 id="pd-cmp" className="mb-2 font-semibold">{r.size} at {nStores} {nStores === 1 ? "store" : "stores"} <span className="font-normal text-muted text-sm">· every pack and variant, cheapest delivered first</span></h3>
+            <h3 id="pd-cmp" className="font-semibold">{r.size} at {nStores} {nStores === 1 ? "store" : "stores"} </h3>
+            <p className="mb-2 text-sm text-muted">Every pack and variant, cheapest delivered first</p>
             <ul className="divide-y divide-line rounded-xl border border-line">
               {peers.map(p => { const me = p.id === r.id; return (
                 <li key={p.id} className={"flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 " + (me ? "bg-accent-soft/60" : "")}>
@@ -128,7 +126,8 @@ export default function ProductDialog({ r, data, prov, onOpen, onClose }) {
           </section>
 
           <section aria-labelledby="pd-hist">
-            <h3 id="pd-hist" className="mb-2 font-semibold">Price history <span className="font-normal text-muted text-sm">· this listing's pack price</span></h3>
+            <h3 id="pd-hist" className="font-semibold">Price history</h3>
+            <p className="mb-2 text-sm text-muted">Pack price of this listing</p>
             {data.histStatus === "error" ? <p className="text-sm text-muted">Price history isn't available right now.</p>
               : !data.hist ? <p className="text-sm text-muted">Loading history…</p>
               : <History h={data.hist[r.id] || []} />}

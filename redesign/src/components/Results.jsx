@@ -1,5 +1,5 @@
 import Icon from "./Icon";
-import { Badge, StockBadges, LowestBadge, ShipNote, Delta, Dash, Thumb } from "./bits";
+import { Badge, StockBadges, LowestBadge, ShipNote, Delta, Dash, Thumb, ShelfLabel } from "./bits";
 import { unit, money, inch, ASC_FIRST } from "../lib/data";
 
 const Name = ({ r }) => (
@@ -25,7 +25,7 @@ function Th({ k, sort, onSort, children, num, title, className = "" }) {
   return (
     <th scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : undefined} className={"sticky top-0 z-10 bg-sunken p-0 font-normal " + className}>
       <button type="button" onClick={() => onSort(k)} title={title}
-        className={"flex w-full items-center gap-1 whitespace-nowrap px-2.5 py-3 text-left text-cap font-semibold uppercase tracking-[0.04em] hover:text-ink " + (num ? "justify-end text-right " : "") + (on ? "text-ink" : "text-muted")}>
+        className={"flex w-full items-center gap-1 whitespace-nowrap px-2.5 py-3 text-left text-sm font-semibold hover:text-ink " + (num ? "justify-end text-right " : "") + (on ? "text-ink" : "text-muted")}>
         {children}
         {on && <Icon name={sort.dir === "asc" ? "up" : "down"} size={14} />}
       </button>
@@ -47,7 +47,7 @@ export function ResultsTable({ list, cat, one, sort, onSort, onOpen }) {
             {booster ? <Th k="dl" {...p} title="Length × width, in inches">L × W</Th> : <Th k="size" {...p}>Size</Th>}
             <Th k="qty" {...p} num>Pack</Th>
             <Th k="price" {...p} num title="Package price; shelf price per piece under it">Price</Th>
-            <Th k="dpd" {...p} num className="!bg-accent-soft" title="Price plus shipping for just this pack to your province, divided by pieces"><span className="text-right leading-tight">Delivered<span className="block font-medium normal-case tracking-normal">per {one}</span></span></Th>
+            <Th k="dpd" {...p} num className="!bg-accent-soft" title="Price plus shipping for just this pack to your province, divided by pieces"><span className="text-right leading-tight">Delivered<span className="block font-normal">per {one}</span></span></Th>
             <Th k="cap" {...p} num title="Maker's stated capacity; $/L uses the delivered price">Capacity</Th>
             <th scope="col" className="sticky top-0 z-10 bg-sunken pr-4"><span className="sr-only">Store link</span></th>
           </tr>
@@ -108,7 +108,7 @@ export function ResultsTable({ list, cat, one, sort, onSort, onOpen }) {
 // ---------- phone / tablet cards ----------
 function Spec({ k, children }) {
   return (
-    <div className="min-w-0 px-3 py-2">
+    <div className="min-w-0 px-2 py-2 first:pl-0">
       <dt className="text-cap text-muted">{k}</dt>
       <dd className="num truncate font-semibold">{children}</dd>
     </div>
@@ -126,32 +126,28 @@ export function ResultCards({ list, one, onOpen }) {
               <button type="button" onClick={() => onOpen(r.id)} className="block text-left leading-snug rounded">
                 <Name r={r} />
               </button>
-              <div className="mt-0.5 text-sm text-muted">{r.brand ? `${r.brand} · ` : ""}{r.store}</div>
-              {(!r.avail || r.stale || r.lowest) && <div className="mt-1.5 flex flex-wrap gap-1">{r.lowest && <LowestBadge />}<StockBadges r={r} /></div>}
+              {r.brand && <div className="mt-0.5 text-sm text-muted">{r.brand}</div>}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"><span className="font-medium">{r.store}</span>{r.nst > 1 && <span className="font-semibold text-accent">{r.nst} stores</span>}{r.lowest && <LowestBadge />}<StockBadges r={r} /></div>
             </div>
           </div>
-          <div className="mx-3 flex items-stretch gap-3 rounded-lg border-l-4 border-brand-blue bg-accent-soft/70 px-3 py-2">
-            <div className="flex-1">
-              <div className="text-cap text-muted">Delivered per {one}</div>
-              <div className="num text-[22px] font-bold leading-7">{r.dpd != null ? unit(r.dpd) : "—"}</div>
-              <ShipNote r={r} />
-            </div>
-            <div className="text-right">
+          <div className="mx-3 flex items-start justify-between gap-3">
+            <ShelfLabel r={r} one={one} />
+            <div className="pt-1 text-right">
               <div className="text-cap text-muted">Pack price</div>
               <div className="num font-semibold">{money(r.price)}</div>
               <div className="num text-cap text-muted">{unit(r.ppd)}/{one} shelf</div>
               <Delta r={r} />
             </div>
           </div>
-          <dl className="mx-3 mt-2 grid grid-cols-3 divide-x divide-line rounded-lg border border-line">
+          <dl className="mx-3 mt-3 grid grid-cols-3 divide-x divide-line border-y border-line">
             <Spec k={r.cat === "booster" ? "L × W" : "Size"}>{sizeText(r) || "—"}</Spec>
             <Spec k="Pack">{r.qty ? `${r.pkg} of ${r.qty}` : r.pkg}</Spec>
             <Spec k="Capacity">{r.cap ? `${r.cap.toLocaleString()} mL` : "—"}</Spec>
           </dl>
-          {r.cat !== "booster" && r.waist && <p className="num mx-3 mt-1.5 text-cap text-muted">Fits {r.waist[0]}–{r.waist[1]}" waist{r.dpl != null ? ` · ${money(r.dpl)}/L delivered` : ""}</p>}
+          {((r.cat !== "booster" && r.waist) || r.dpl != null) && <p className="num mx-3 mt-1.5 flex flex-wrap gap-x-4 text-sm text-muted">{r.cat !== "booster" && r.waist && <span>Fits {r.waist[0]}–{r.waist[1]}" waist</span>}{r.dpl != null && <span>{money(r.dpl)} per litre delivered</span>}</p>}
           <div className="mt-auto flex items-center justify-between gap-2 px-3 pb-1 pt-1">
             <button type="button" onClick={() => onOpen(r.id)} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-accent">
-              {r.nst > 1 ? `Compare ${r.nst} stores` : "Details & history"}
+              {r.nst > 1 ? `Compare ${r.nst} stores` : "Details and price history"}
             </button>
             <StoreLink r={r} className="min-h-[44px] text-sm" />
           </div>

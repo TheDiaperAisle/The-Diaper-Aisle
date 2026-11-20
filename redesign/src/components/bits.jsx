@@ -17,10 +17,24 @@ export function StockBadges({ r }) {
   return (
     <>
       {!r.avail && (r.bo
-        ? <Badge tone="bad" title="The store still takes orders and ships once it is back in stock">Out of stock · backorder</Badge>
+        ? <Badge tone="bad" title="The store still takes orders and ships once it is back in stock">Backorder</Badge>
         : <Badge tone="bad">Out of stock</Badge>)}
       {r.stale && <Badge tone="warn" title="This price could not be re-checked today">Stale price</Badge>}
     </>
+  );
+}
+
+// The signature element: a Canadian shelf label. Ink outline, ink header strip, the delivered unit price large.
+export function ShelfLabel({ r, one, size = "md", label }) {
+  const big = size === "lg";
+  return (
+    <div className="inline-flex min-w-[148px] flex-col overflow-hidden rounded-md border-2 border-ink bg-card">
+      <div className={"bg-ink px-2.5 py-0.5 font-semibold text-card " + (big ? "text-sm" : "text-cap")}>{label || `Delivered, per ${one}`}</div>
+      <div className={"px-2.5 pt-1 " + (big ? "pb-2" : "pb-1.5")}>
+        <div className={"num font-bold leading-none tracking-tight " + (big ? "text-[34px]" : "text-[26px]")}>{r.dpd != null ? unit(r.dpd) : "—"}</div>
+        <div className="mt-1"><ShipNote r={r} className={big ? "text-sm" : ""} />{r.dpd == null && <span className="text-cap text-muted">No shipping data</span>}</div>
+      </div>
+    </div>
   );
 }
 

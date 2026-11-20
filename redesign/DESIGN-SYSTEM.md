@@ -12,6 +12,24 @@ No gradients on data, no decoration that competes with numbers, no stock photos.
 The tokens live in `src/index.css` (CSS variables, light + dark) and `tailwind.config.js` (names). Components use
 token names only, never raw hex.
 
+## 0. Where this system comes from
+
+Generated with the **ui-ux-pro-max** skill (raw output: `design-system/ui-ux-pro-max-output.md`), then checked
+against the brand and the audience. The skill's own rule is that its results are recommendations and the repository's
+existing decisions win.
+
+| ui-ux-pro-max recommended | Decision |
+|---|---|
+| Style: Minimalism & Swiss (dashboards, professional tools), density 8/10, motion 2/10 | **Adopted.** Grid-led, high contrast, borders over shadows, almost no motion |
+| Line charts: distinct line styles + direct series labels, never hue alone; data-table fallback | **Adopted.** Store lines get solid / dashed / dotted strokes; labels at line ends; "Show as table" |
+| `readable-font-size`: 16px body minimum on mobile (iOS zoom) | **Adopted.** Body and inputs move from 15px to 16px |
+| `number-tabular`: tabular figures for prices | Already in place |
+| Tables on mobile: card layout instead of a wide table | Already in place |
+| Palette: corporate blue #1E40AF + amber CTA (first try: green #059669 + orange) | **Rejected.** Generic; clashes with the logo. The logo's own palette (ink purple, aisle blue, price green, size red) stays |
+| Type: Fira Code headings + Fira Sans body ("Dashboard Data") | **Rejected for headings** (monospace reads as a developer tool to shoppers). Body stays IBM Plex Sans: same legibility goals, true tabular figures, already shipped |
+| Pattern: "Enterprise Gateway" / "Feature-Rich Showcase" landing page | **Rejected.** This is a tool, not a marketing page; the first screen is the price list |
+| Scroll-reveal motion (GSAP) | **Rejected.** Content must be visible at rest; motion 2/10 means no reveal animations |
+
 ## 1. Colour
 
 Brand palette (from the logo): aisle ink `#33254c`, shelf purple `#7f749d`, aisle blue `#5ea6db`, aisle teal
@@ -42,17 +60,17 @@ Semantic tokens (light / dark). Every text token passes WCAG AA (4.5:1) on every
 Chart colours (Trends): one fixed slot per store, validated for colour-blind separation on both surfaces (kept
 from v1): Healthwick `#2a78d6`, ABUniverse `#eb6834`, MyDips `#1baf7a`, AgeComfort `#eda100`, Rearz `#e87ba4`,
 Amazon `#008300`. Direction: cheaper = blue `#2a78d6`, pricier = red `#e34948` (blue/red, not green/red,
-so colour-blind users can tell them apart). Colour is never the only signal: arrows (▲ ▼), signs (+ −) and words go with it.
+so colour-blind users can tell them apart). Store lines also differ by stroke (solid, dashed, dotted). Colour is never the only signal: arrows (▲ ▼), signs (+ −) and words go with it.
 
 ## 2. Type
 
 - **Display:** Rubik 700, uppercase only for the wordmark and section eyebrows (brand voice from v1).
 - **Text and numbers:** IBM Plex Sans 400/500/600/700. Chosen for legibility: open apertures, a slashed-free but
   clearly distinct 0/O and 1/l/I, and true tabular figures. All numbers use `tabular-nums` so prices line up.
-- **Scale (px / line-height):** 13/18 caption · 14/20 small · 15/22 body · 17/24 price · 20/28 h3 · 24/30 h2 ·
+- **Scale (px / line-height):** 13/18 caption · 14/20 small · 16/24 body · 17/24 price · 20/28 h3 · 24/30 h2 ·
   32/38 h1 (mobile 26/32).
 - **Floor:** nothing below **13px**, and 13px is used only for helper captions in `muted` (8.5:1). Table numbers are
-  15px; the delivered unit price, the number people decide on, is 17px semibold. Uppercase labels get +0.04em tracking
+  16px; the delivered unit price, the number people decide on, is 17px semibold. Uppercase labels get +0.04em tracking
   and are at least 13px.
 
 ## 3. Space, shape, depth

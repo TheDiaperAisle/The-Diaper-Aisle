@@ -50,3 +50,37 @@ every number and small text easy to read. React + Tailwind, live data from `data
 | Populated screens | Reads the live published `data/` (≈1,670 real listings, real history) |
 | Fully responsive | Cards < 1024px, rail ≥ 1024px, checked at 390px and 1440px |
 | Every page | Tracker (3 tabs), product dialog, image viewer, Trends |
+
+## Pass 2: frontend-design review (after the ui-ux-pro-max design system)
+
+### Review of pass 1 against the brief and the "templated" checklist
+| Pass 1 had | Why it reads as a default | Revision |
+|---|---|---|
+| Uppercase tracked labels on every table header and caption | Template chrome; harder to read than sentence case | Sentence-case headers, 14px semibold; no all-caps anywhere except the logo wordmark |
+| Meta strings joined with middle dots ("FitRight · Amazon", "Bag of 20 · $56.52") | Template chrome; packs facts into one hard-to-scan line | Facts get their own line or label; dots only inside the store comparison where space is tight |
+| Price block = tinted rounded card with a blue left bar | "Accent bar on a rounded card" is a stock look | **The one bold element: a Canadian shelf label.** Ink-outlined box, ink header strip ("Delivered, per diaper"), the price large under it, shipping line at the foot. It is what shoppers already read in a store aisle, so it carries the brand idea (the aisle) and the number people decide on |
+| Every block (rail, table, feedback, notes, every Trends chart) a white rounded card with a border | SaaS card kit; flattens hierarchy | Cards only where an object is separate: listing cards, the table, dialogs, charts. Filter rail sits on the page ground with dividers; feedback and method notes are plain sections under a rule |
+| Four identical big-number tiles at the top of Trends | Default dashboard opener | One stat strip with dividers: the four figures read as one sentence about the period |
+| 15px body | ui-ux-pro-max `readable-font-size` | 16px body and inputs |
+| Store lines distinguished by hue only | ui-ux-pro-max chart rule | Solid / dashed / dotted strokes, legend shows the stroke |
+
+### Wireframe: listing card (phone)
+```
+┌───────────────────────────────────────┐
+│ [img] Ultra                            │
+│       FitRight                         │
+│       Amazon, 2 stores   ✓ Lowest      │
+│ ┌─────────────────────┐  Pack $43.70   │
+│ │ Delivered, per diaper│  $0.546 shelf  │  <- shelf label (ink box, ink strip)
+│ │ $0.546              │  ↑ was $43.23  │
+│ │ Free shipping       │                │
+│ └─────────────────────┘                │
+│  Size L     Case of 80     Capacity —  │
+│  Fits 44–56" waist                     │
+│ Compare 2 stores        View at Amazon │
+└───────────────────────────────────────┘
+```
+Alignment: everything left-aligned; numbers right-aligned in table columns only.
+
+### Check against the brief
+Better visual design (one memorable, subject-specific element; less chrome), inside the design system (tokens unchanged, decisions logged in DESIGN-SYSTEM.md §0), numbers and small text readable (16px body, sentence-case labels, 13px floor kept), every page (tracker tabs, card, table, dialog, Trends).

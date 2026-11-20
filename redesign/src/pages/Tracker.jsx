@@ -64,7 +64,7 @@ export default function Tracker({ cat, data }) {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
           <div>
             <h1 className="font-display text-[26px] leading-8 md:text-h1 font-bold tracking-tight">{CATS[cat].label}</h1>
-            <p className="text-muted">{CATS[cat].sub} · prices in CAD, before tax, delivered to <strong className="font-semibold text-ink">{provName}</strong></p>
+            <p className="text-muted">{CATS[cat].sub}. Prices in CAD before tax, delivered to <strong className="font-semibold text-ink">{provName}</strong>.</p>
           </div>
         </div>
 
@@ -95,7 +95,7 @@ export default function Tracker({ cat, data }) {
         <div className="grid gap-6 xl:grid-cols-[288px_minmax(0,1fr)]">
           {rail && (
             <aside aria-label="Filters" className="sticky top-4 self-start">
-              <div className="card max-h-[calc(100dvh-32px)] overflow-y-auto px-4 pb-2 pt-4">
+              <div className="max-h-[calc(100dvh-32px)] overflow-y-auto pb-2 pr-2">
                 <div className="mb-3 flex items-center justify-between"><h2 className="text-h3 font-bold">Filters</h2>
                   {nActive > 0 && <button type="button" className="link text-sm" onClick={clearAll}>Clear all</button>}</div>
                 {panel}
@@ -107,7 +107,7 @@ export default function Tracker({ cat, data }) {
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h2 id="res-h" className="mr-1 text-base text-muted" aria-live="polite">
                 {data.status !== "ready" ? (data.status === "error" ? "Prices could not be loaded." : "Loading listings…")
-                  : <><strong className="num font-semibold text-ink">{list.length.toLocaleString()}</strong> of <span className="num">{catRows.length.toLocaleString()}</span> {one} listings · {sortLabel}, {sort.dir === "asc" ? "low to high" : "high to low"}</>}
+                  : <><strong className="num font-semibold text-ink">{list.length.toLocaleString()}</strong> of <span className="num">{catRows.length.toLocaleString()}</span> {one} listings, sorted by {sortLabel}, {sort.dir === "asc" ? "low to high" : "high to low"}</>}
               </h2>
               {chips.map(([l, rm], i) => (
                 <button key={i} type="button" onClick={rm} className="chip border-accent/40 bg-accent-soft text-ink hover:border-accent" aria-label={`Remove filter ${l}`}>
@@ -188,7 +188,7 @@ function Feedback() {
     setTimeout(() => setCopied(""), 2500);
   };
   return (
-    <section aria-labelledby="fb-h" className="card mt-10 flex flex-wrap items-center justify-between gap-5 border-l-4 border-l-brand-blue p-5 md:p-6">
+    <section aria-labelledby="fb-h" className="mt-12 flex flex-wrap items-center justify-between gap-5 border-t-2 border-ink pt-6">
       <div className="max-w-[62ch]">
         <h2 id="fb-h" className="text-h3 font-bold">Help make the tracker better</h2>
         <p className="mt-1 text-muted">Spotted a price, pack size or stock status that looks off, or have an idea for a feature? Prices are checked daily, but mistakes slip through. Tell us which listing is wrong or what you'd like added.</p>
@@ -204,7 +204,7 @@ function Feedback() {
 
 function Method({ one }) {
   return (
-    <details className="card mt-4 p-5 md:p-6">
+    <details className="mt-6 border-t border-line pt-5">
       <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Icon name="info" className="text-muted" /> How prices are worked out</summary>
       <div className="mt-3 grid max-w-[80ch] gap-3 text-muted">
         <p><strong className="text-ink">Shelf/{one}</strong> = package price ÷ pieces in the package.</p>

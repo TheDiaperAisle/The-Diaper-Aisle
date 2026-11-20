@@ -5,6 +5,7 @@ import { loadHistory, useLocal, useWidth } from "../lib/store";
 
 const STORES = ["Healthwick", "ABUniverse", "MyDips", "AgeComfort", "Rearz", "Amazon"];   // fixed colour slots 1-6
 const scol = s => `var(--s${STORES.indexOf(s) + 1})`;
+const DASH = ["", "7 4", "2 3", "10 3 2 3", "4 4", "1 0"];   // stroke per store, so lines differ by more than hue
 const addDays = (d, n) => new Date(Date.parse(d + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const pname = r => { const n = r.line || r.name; return n.toLowerCase().startsWith((r.brand || "").toLowerCase()) ? n : `${r.brand} ${n}`; };
@@ -36,6 +37,7 @@ function Card({ title, sub, children, table, legend }) {
   );
 }
 const Key = ({ c, children }) => <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded-sm" style={{ background: c }} />{children}</span>;
+const LineKey = ({ s, children }) => <span className="inline-flex items-center gap-1.5"><svg width="24" height="10" aria-hidden="true"><line x1="1" x2="23" y1="5" y2="5" stroke={scol(s)} strokeWidth="2.5" strokeDasharray={DASH[STORES.indexOf(s)] || undefined} /></svg>{children}</span>;
 const T = ({ head, rows }) => (
   <table className="num w-full text-sm">
     <thead><tr className="border-b border-line-strong text-left">{head.map((h, i) => <th key={h} className={"px-2 py-1.5 font-semibold " + (i ? "text-right" : "")}>{h}</th>)}</tr></thead>
@@ -74,7 +76,7 @@ function IndexChart({ X }) {
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`Price index by store, ${X.start} to ${X.end}`} className="block max-w-full overflow-visible">
         {grid.map(v => <g key={v}><line x1={L} x2={W - R} y1={ys(v)} y2={ys(v)} stroke={Math.abs(v - 100) < 1e-9 ? "var(--axis)" : "var(--grid)"} /><text x={L - 8} y={ys(v) + 4} textAnchor="end" fontSize="13" className="fill-muted num">{+v.toFixed(1)}</text></g>)}
         {xt.map((i, k) => <text key={k} x={xs(i)} y={H - 8} fontSize="13" className="fill-muted num" textAnchor={k === 0 ? "start" : k === nt - 1 ? "end" : "middle"}>{X.dates[i].slice(5)}</text>)}
-        {series.map(x => { let d = ""; x.pts.forEach((v, i) => { if (v != null) d += (d ? "L" : "M") + xs(i).toFixed(1) + " " + ys(v).toFixed(1); }); return <path key={x.s} d={d} fill="none" stroke={scol(x.s)} strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" />; })}
+        {series.map(x => { let d = ""; x.pts.forEach((v, i) => { if (v != null) d += (d ? "L" : "M") + xs(i).toFixed(1) + " " + ys(v).toFixed(1); }); return <path key={x.s} d={d} fill="none" stroke={scol(x.s)} strokeDasharray={DASH[STORES.indexOf(x.s)] || undefined} strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" />; })}
         {ends.map(e => <g key={e.s}><circle cx={xs(X.dates.length - 1)} cy={ys(e.v)} r="4" fill={scol(e.s)} stroke="rgb(var(--card))" strokeWidth="2" /><text x={W - R + 10} y={e.y + 4} fontSize="13" className="fill-ink font-medium">{e.s} <tspan className="num fill-muted">{e.v.toFixed(1)}</tspan></text></g>)}
         {cur != null && <line x1={xs(cur)} x2={xs(cur)} y1={Tp} y2={H - B} stroke="var(--axis)" />}
         <rect x={L} y={Tp} width={W - L - R} height={H - Tp - B} fill="transparent" tabIndex="0" aria-label="Chart: use left and right arrow keys for each day's values"
@@ -85,7 +87,7 @@ function IndexChart({ X }) {
   }
   return (
     <Card title="Price index by store" sub="Every listing's price at the start of the period = 100, averaged per store. Below 100 means that store got cheaper overall."
-      legend={series.map(x => <Key key={x.s} c={scol(x.s)}>{x.s} <span className="num text-muted">({x.n})</span></Key>)}
+      legend={series.map(x => <LineKey key={x.s} s={x.s}>{x.s} <span className="num text-muted">({x.n})</span></LineKey>)}
       table={ok && <T head={["Date", ...series.map(x => x.s)]} rows={X.dates.map((d, i) => [d, ...series.map(x => x.pts[i] == null ? "—" : x.pts[i].toFixed(1))])} />}>
       <div ref={ref} className="relative">{ok ? body : <p className="py-10 text-center text-muted">Not enough history for this period yet.</p>}<Tip tip={tip} /></div>
     </Card>
@@ -165,7 +167,7 @@ function Movers({ title, sub, list, one }) {
             <li key={x.r.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-3">
               <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                 <a className="link font-semibold" href={x.r.url} target="_blank" rel="noopener">{pname(x.r)}<span className="sr-only"> (opens in a new tab)</span></a>
-                <div className="text-sm text-muted">{x.r.store} · {x.r.size} · {x.r.pkg} of {x.r.qty}{x.r.variant ? " · " + x.r.variant : ""}</div>
+                <div className="text-sm text-muted">{x.r.store}, size {x.r.size}, {x.r.pkg.toLowerCase()} of {x.r.qty}{x.r.variant ? `, ${x.r.variant.toLowerCase()}` : ""}</div>
               </div>
               <div className="flex-1 sm:flex-none sm:text-right">
                 <div className="num whitespace-nowrap text-sm">{money(x.p0)} → <b>{money(x.p1)}</b></div>
@@ -235,14 +237,14 @@ export default function Trends({ data }) {
     const tiles = [
       [`Median price per ${one}`, unit(now), `${live.length.toLocaleString()} in-stock listings`, ""],
       ["Average price change", pct(avg), `Median per ${one}: ${unit(m0)} → ${unit(m1)}`, avg >= 0.05 ? "text-bad" : avg <= -0.05 ? "text-good" : ""],
-      ["Price changes", (up + dn).toLocaleString(), <><span className="text-bad">▲ {up} up</span> · <span className="text-good">▼ {dn} down</span></>, ""],
+      ["Price changes", (up + dn).toLocaleString(), <><span className="text-bad">▲ {up} up</span>, <span className="text-good">▼ {dn} down</span></>, ""],
       ["Listings that moved", moved.toLocaleString(), `of ${X.base.length.toLocaleString()} tracked through the period`, ""],
     ];
     content = (
       <div className="grid gap-4 md:gap-5">
-        <section aria-label="Summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {tiles.map(([k, v, s, c]) => (
-            <div key={k} className="card p-4">
+        <section aria-label="Summary" className="grid grid-cols-2 border-y-2 border-ink lg:grid-cols-4">
+          {tiles.map(([k, v, s, c], i) => (
+            <div key={k} className={"py-4 pr-4 " + (i % 2 ? "border-l border-line pl-4 " : "") + (i === 2 ? "border-t border-line lg:border-l lg:border-t-0 lg:pl-4 " : "") + (i === 3 ? "border-t border-line lg:border-t-0 " : "")}>
               <div className="text-sm text-muted">{k}</div>
               <div className={"num mt-1 text-[26px] font-bold leading-8 md:text-[30px] md:leading-9 " + c}>{v}</div>
               <div className="num mt-1 text-cap text-muted">{s}</div>
@@ -277,7 +279,7 @@ export default function Trends({ data }) {
   return (
     <main id="main" className="mx-auto max-w-page px-4 pb-16 pt-5 md:px-6 md:pt-7 xl:px-8">
       <h1 className="font-display text-[26px] font-bold leading-8 tracking-tight md:text-h1">Price trends</h1>
-      <p className="text-muted">{X ? <>{X.start} to {X.end} · <span className="num">{X.base.length.toLocaleString()}</span> listings tracked through the period</> : "Loading price history…"}</p>
+      <p className="text-muted">{X ? <>{X.start} to {X.end}. <span className="num">{X.base.length.toLocaleString()}</span> listings tracked through the whole period.</> : "Loading price history…"}</p>
       <div className="my-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Seg label="Show" value={F.cat} onChange={v => setF(f => ({ ...f, cat: v }))} options={Object.entries(CATS).map(([k, c]) => [k, c.label])} />
         <Seg label="Period" value={F.days} onChange={v => setF(f => ({ ...f, days: v }))} options={[[7, "7 days"], [30, "30 days"], [0, "All time"]]} />

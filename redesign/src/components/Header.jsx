@@ -31,8 +31,8 @@ export default function Header({ route, data }) {
             <details className="group relative">
               <summary className="flex min-h-[36px] cursor-pointer list-none items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 hover:bg-white/15 [&::-webkit-details-marker]:hidden">
                 <span className={"h-2.5 w-2.5 rounded-full " + (bad.length ? "bg-[#eb665d]" : "bg-[#7fc678]")} aria-hidden="true" />
-                Updated {when}
-                <span className="text-brand-sky">· {bad.length ? `${bad.length} of ${stores.length} stores not refreshed` : `${stores.length} stores`}</span>
+                <span className="whitespace-nowrap">Updated {when}</span>
+                <span className={"text-brand-sky " + (bad.length ? "" : "hidden sm:inline")}>{bad.length ? `${bad.length} of ${stores.length} stores not refreshed` : `${stores.length} stores checked`}</span>
                 <Icon name="chev" size={16} className="text-brand-sky transition-transform group-open:rotate-180" />
               </summary>
               <ul className="absolute right-0 z-30 mt-2 w-64 max-w-[calc(100vw-32px)] rounded-xl border border-line bg-card p-2 text-ink shadow-pop">

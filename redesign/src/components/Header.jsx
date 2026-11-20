@@ -15,16 +15,20 @@ export default function Header({ route, data }) {
   const stores = Object.entries(m?.stores || {});
   const bad = stores.filter(([, s]) => !s.ok);
   return (
-    <header className="bg-brand-ink text-white">
+    <header className="aisle-band relative overflow-hidden bg-brand-ink text-white">
       <a href="#results" onClick={skip} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-[#1d1530]">Skip to results</a>
-      <div className="mx-auto max-w-page px-4 md:px-6 xl:px-8 pt-4 pb-3 md:pt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
-        <a href="#diapers" className="flex items-center gap-3 md:gap-4 min-w-0 rounded-lg">
-          <img src={logo} alt="" width="64" height="62" className="w-12 h-auto md:w-16" />
-          <span className="min-w-0">
-            <span translate="no" className="block font-display font-bold uppercase leading-none text-[22px] md:text-[28px] tracking-tight">
-              The Diaper Aisle
+      <div className="relative mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-3 px-4 pb-4 pt-4 md:px-6 md:pb-5 md:pt-6 xl:px-8">
+        {/* the aisle sign: sticker logo, big wordmark in the logo's lettering, tagline on a price tag */}
+        <a href="#diapers" className="sign group flex min-w-0 items-center gap-3 rounded-2xl sm:gap-5" aria-label="The Diaper Aisle, diaper prices">
+          <img src={logo} alt="" width="136" height="131" className="sign-logo h-auto w-[84px] shrink-0 sm:w-[112px] lg:w-[136px]" />
+          <span className="flex min-w-0 flex-col items-start gap-2 sm:gap-3">
+            <span translate="no" className="wordmark font-display text-[32px] font-black uppercase leading-[0.9] sm:text-[46px] lg:text-[58px]">
+              The Diaper<br className="sm:hidden" /> Aisle
             </span>
-            <span className="block text-sm md:text-base text-brand-sky mt-1">Canadian adult diaper prices, checked daily</span>
+            <span className="price-tag inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold sm:text-base">
+              <Icon name="tag" size={16} />
+              <span>Canadian <span className="hidden sm:inline">adult diaper </span>prices, checked daily</span>
+            </span>
           </span>
         </a>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-sm" aria-live="polite">

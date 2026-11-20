@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import { Badge, LowestBadge, CompareNote, ShipNote, Thumb, ShelfLabel } from "./bits";
 import { CATS, SHIP, SIZE_ORDER, FEEDBACK, PROVINCES, unit, money, inch, day } from "../lib/data";
@@ -6,25 +6,71 @@ import { loadHistory, useWidth } from "../lib/store";
 
 function History({ h }) {
   const [ref, w] = useWidth();
+  const [at, setAt] = useState(null);   // index of the price step under the pointer / keyboard
   if (!h) return null;
   if (h.length < 2) return <p ref={ref} className="text-sm text-muted">{h.length ? `One price point so far: ${money(h[0][1])} on ${day(h[0][0])}. The chart fills in as the price changes.` : "No history yet."}</p>;
   const pts = h.map(([d, p]) => [Date.parse(d), p]); pts.push([Date.now(), pts[pts.length - 1][1]]);
-  const W = Math.max(280, w || 600), H = W < 480 ? 170 : 200, L = 60, R = 12, T = 12, B = 30, xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const W = Math.max(280, w || 600), H = W < 480 ? 180 : 210, L = 64, R = 12, T = 14, B = 30, xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(...ys) * 0.97, hi = Math.max(...ys) * 1.03;
   const X = t => L + (t - x0) / (x1 - x0 || 1) * (W - L - R), Y = v => T + (hi - v) / (hi - lo || 1) * (H - T - B);
   let d = ""; pts.forEach((p, i) => { d += i ? `H${X(p[0]).toFixed(1)}V${Y(p[1]).toFixed(1)}` : `M${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`; });
   const ticks = [lo, (lo + hi) / 2, hi];
   const last = pts[pts.length - 1];
+  // the step under a given x: the last price change at or before that time
+  const stepAt = clientX => {
+    const r = ref.current.querySelector("svg").getBoundingClientRect(), t = x0 + ((clientX - r.left) / r.width * W - L) / (W - L - R) * (x1 - x0);
+    let i = 0; h.forEach(([dd], k) => { if (Date.parse(dd) <= t) i = k; }); return i;
+  };
+  const cur = at == null ? null : (() => {
+    const [d0, p, stock] = h[at], end = h[at + 1]?.[0];
+    const prev = at > 0 ? h[at - 1][1] : null;
+    const xa = X(Date.parse(d0)), xb = end ? X(Date.parse(end)) : X(last[0]);
+    return { p, stock, prev, from: day(d0), to: end ? day(end) : "today", x: (xa + xb) / 2, y: Y(p) };
+  })();
+  const tipLeft = cur ? Math.min(Math.max(cur.x - 104, L), W - 216) : 0;
+  const tipTop = cur ? (cur.y - T > 74 ? cur.y - 78 : cur.y + 14) : 0;
   return (
-    <div ref={ref}>
+    <div ref={ref} className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block max-w-full" role="img" aria-label={`Price history: ${h.map(([d, p]) => `${money(p)} from ${day(d)}`).join(", ")}`}>
-        {ticks.map(v => <g key={v}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="var(--grid)" /><text x={L - 8} y={Y(v) + 4} textAnchor="end" className="fill-muted num" fontSize="13">${v.toFixed(2)}</text></g>)}
+        {ticks.map(v => <g key={v}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="var(--grid)" />{!(cur && Math.abs(Y(v) - cur.y) < 18) && <text x={L - 8} y={Y(v) + 4} textAnchor="end" className="fill-muted num" fontSize="13">{money(v)}</text>}</g>)}
         <path d={d} fill="none" stroke="rgb(var(--accent))" strokeWidth="2.5" strokeLinejoin="round" />
-        <circle cx={X(last[0])} cy={Y(last[1])} r="4.5" fill="rgb(var(--accent))" stroke="rgb(var(--card))" strokeWidth="2" />
+        {/* the step under the pointer: a guide down to the dates, a dashed rule across to the price axis, and its price on the axis */}
+        {cur && <g pointerEvents="none">
+          <line x1={cur.x} x2={cur.x} y1={T} y2={H - B} stroke="var(--axis)" />
+          <line x1={L} x2={cur.x} y1={cur.y} y2={cur.y} stroke="rgb(var(--accent))" strokeDasharray="4 3" />
+          <rect x={2} y={cur.y - 11} width={L - 6} height={22} rx="5" fill="rgb(var(--accent))" />
+          <text x={L / 2 - 1} y={cur.y + 4.5} textAnchor="middle" fontSize="13" fontWeight="700" className="num" fill="rgb(var(--on-accent))">{money(cur.p)}</text>
+          <circle cx={cur.x} cy={cur.y} r="5.5" fill="rgb(var(--accent))" stroke="rgb(var(--card))" strokeWidth="2.5" />
+        </g>}
+        {!cur && <g pointerEvents="none">
+          <circle cx={X(last[0])} cy={Y(last[1])} r="4.5" fill="rgb(var(--accent))" stroke="rgb(var(--card))" strokeWidth="2" />
+          <text x={X(last[0]) - 8} y={Y(last[1]) - 10} textAnchor="end" fontSize="13" fontWeight="700" className="num fill-ink">{money(last[1])} now</text>
+        </g>}
         <text x={L} y={H - 8} className="fill-muted num" fontSize="13">{day(new Date(x0).toISOString().slice(0, 10))}</text>
         <text x={W - R} y={H - 8} textAnchor="end" className="fill-muted" fontSize="13">today</text>
+        <rect x={L} y={T} width={W - L - R} height={H - T - B} fill="transparent" tabIndex="0" style={{ touchAction: "pan-y", cursor: "crosshair" }}
+          aria-label="Price history chart. Use the left and right arrow keys to read each price."
+          onPointerMove={e => setAt(stepAt(e.clientX))} onPointerDown={e => setAt(stepAt(e.clientX))} onPointerLeave={e => e.pointerType === "mouse" && setAt(null)}
+          onFocus={() => setAt(a => a ?? h.length - 1)} onBlur={() => setAt(null)}
+          onKeyDown={e => {
+            if (e.key === "ArrowLeft") { e.preventDefault(); setAt(a => Math.max(0, (a ?? h.length) - 1)); }
+            if (e.key === "ArrowRight") { e.preventDefault(); setAt(a => Math.min(h.length - 1, (a ?? -1) + 1)); }
+            if (e.key === "Escape") setAt(null);
+          }} />
       </svg>
-      <details className="mt-1 text-sm">
+      {cur && (
+        <div role="status" className="pointer-events-none absolute z-10 w-[212px] rounded-lg border border-line bg-card px-3 py-2 text-sm shadow-pop" style={{ left: tipLeft, top: tipTop }}>
+          <div className="num flex items-baseline gap-2">
+            <b className="text-price">{money(cur.p)}</b>
+            {cur.prev != null && cur.prev !== cur.p && <span className={"inline-flex items-center gap-0.5 text-cap font-semibold " + (cur.p > cur.prev ? "text-bad" : "text-good")}>
+              <Icon name={cur.p > cur.prev ? "up" : "down"} size={13} />{money(Math.abs(cur.p - cur.prev))}</span>}
+          </div>
+          <div className="num text-cap text-muted">{cur.from} to {cur.to}</div>
+          {cur.stock === false && <div className="text-cap font-semibold text-bad">Out of stock</div>}
+        </div>
+      )}
+      <p className="mt-1 text-cap text-muted">Point at the line, tap it, or use the arrow keys to read each price.</p>
+      <details className="text-sm">
         <summary className="link inline-flex min-h-[44px] cursor-pointer items-center">Show price changes as a list</summary>
         <ul className="num mt-2 grid gap-1">{h.map(([d, p, s]) => <li key={d}>{day(d)}: {money(p)}{s === false ? ", out of stock" : ""}</li>)}</ul>
       </details>
@@ -131,7 +177,7 @@ export default function ProductDialog({ r, data, prov, onOpen, onClose }) {
             <p className="mb-2 text-sm text-muted">Pack price of this listing</p>
             {data.histStatus === "error" ? <p className="text-sm text-muted">Price history isn't available right now.</p>
               : !data.hist ? <p className="text-sm text-muted">Loading history…</p>
-              : <History h={data.hist[r.id] || []} />}
+              : <History key={r.id} h={data.hist[r.id] || []} />}
           </section>
 
           {ship && <p className="max-w-[70ch] text-sm text-muted"><strong className="text-ink">{r.store} shipping:</strong> {ship.summary} <em>Source: {ship.source}{ship.verified ? " (checked at checkout)" : ""}, {SHIP.checked}.</em></p>}

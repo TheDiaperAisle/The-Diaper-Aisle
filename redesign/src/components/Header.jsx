@@ -15,7 +15,7 @@ export default function Header({ route, data }) {
     <header className="bg-brand-ink text-white">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-[#1d1530]">Skip to results</a>
       <div className="mx-auto max-w-page px-4 md:px-6 xl:px-8 pt-4 pb-3 md:pt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
-        <a href="#/diapers" className="flex items-center gap-3 md:gap-4 min-w-0 rounded-lg">
+        <a href="#diapers" className="flex items-center gap-3 md:gap-4 min-w-0 rounded-lg">
           <img src={logo} alt="" width="64" height="62" className="w-12 h-auto md:w-16" />
           <span className="min-w-0">
             <span className="block font-display font-bold uppercase leading-none text-[22px] md:text-[28px] tracking-tight">
@@ -52,7 +52,7 @@ export default function Header({ route, data }) {
         <ul className="flex gap-1 overflow-x-auto -mb-px [scrollbar-width:none]">
           {NAV.map(([h, c]) => (
             <li key={h}>
-              <a href={"#/" + h} aria-current={route === h ? "page" : undefined}
+              <a href={"#" + h} aria-current={route === h ? "page" : undefined}
                 className={"flex items-center gap-2 whitespace-nowrap rounded-t-xl px-3 sm:px-4 min-h-[48px] text-base font-semibold transition-colors " +
                   (route === h ? "bg-bg text-ink" : "text-white/90 hover:bg-white/10")}>
                 {CATS[c].label}
@@ -61,7 +61,7 @@ export default function Header({ route, data }) {
             </li>
           ))}
           <li className="ml-auto">
-            <a href="#/trends" aria-current={route === "trends" ? "page" : undefined}
+            <a href="#trends" aria-current={route === "trends" ? "page" : undefined}
               className={"flex items-center gap-2 whitespace-nowrap rounded-t-xl px-3 sm:px-4 min-h-[48px] text-base font-semibold transition-colors " +
                 (route === "trends" ? "bg-bg text-ink" : "text-white/90 hover:bg-white/10")}>
               <Icon name="chart" className="hidden sm:block" /> Trends

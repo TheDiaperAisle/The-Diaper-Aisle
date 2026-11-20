@@ -139,7 +139,7 @@ export default function Tracker({ cat, data }) {
 
         <Feedback />
         <Method one={one} />
-        <p className="mt-6 text-sm text-muted">This is the new design, in review. <a className="link" href="../index.html">Open the current tracker</a>.</p>
+        <p className="mt-6 text-sm text-muted">This is the new design, in review. <a className="link" href={import.meta.env.VITE_OLD_URL || "../index.html"}>Open the current tracker</a>.</p>
       </main>
 
       {!rail && (

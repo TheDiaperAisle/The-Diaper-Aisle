@@ -8,6 +8,8 @@ Owner: Nick (nicholas.dumoulin2@gmail.com). The tracker covers adult disposable 
 
 ## Layout
 - `index.html`: the tracker page. It reads `data/`. Change it only when the owner asks, never during the daily run.
+- `v2/`: the redesigned tracker (React + Tailwind build, served at `/The-Diaper-Aisle/v2/`, reads the same `data/`). Built from `redesign/` (`cd redesign && npm ci && npm run build`); design docs in `redesign/DESIGN-SYSTEM.md` and `DESIGN-PLAN.md`. Same rule as `index.html`: change only when the owner asks, never during the daily run. Its shipping rules (`redesign/src/lib/ship.json`) copy the `SHIP` constant in `index.html`; update both together.
+- `.claude/skills/`: design skills for UI work (sources in its README). `.claude/settings.json` runs the impeccable design hook; it only reviews UI files and does nothing during the daily run.
 - `tools/publish.py`: copies a scraper output folder into `data/` and updates `data/meta.json` doc counts.
 - `pipeline/scraper.py`: the stores (Healthwick, ABUniverse, MyDips, AgeComfort via Shopify `/products.json`; Rearz via BigCommerce pages + price API; Well.ca, GoodNites only, via its product sitemap and product pages). Writes `out/`.
 - `pipeline/amazon.py`: adds Amazon.ca listings through the Firecrawl API. Needs `FIRECRAWL_API_KEY` in the environment (never commit the key, never print it). Imports `scraper.py` from its own folder.

@@ -23,9 +23,9 @@ export default function Header({ route, data }) {
           <img src={logo} alt="The Diaper Aisle" width="200" height="193" className="sign-logo h-auto w-[120px] sm:w-[164px] lg:w-[200px]" />
         </a>
         <div className="flex min-w-0 flex-1 basis-[180px] flex-col items-start gap-3">
-          <p className="price-tag inline-flex items-start gap-1.5 rounded-2xl px-3 py-1.5 text-sm font-bold leading-snug sm:items-center sm:rounded-full sm:text-base">
-            <Icon name="tag" size={16} className="mt-0.5 sm:mt-0" />
-            <span>Canadian adult diaper prices, checked daily</span>
+          {/* a paper price tag: pointed end, punched hole, a loop of string through it */}
+          <p className="tag-wrap">
+            <span className="price-tag text-sm font-bold leading-snug sm:text-base">Canadian adult diaper prices, checked daily</span>
           </p>
           <p className="hidden max-w-[46ch] text-base text-brand-sky sm:block">
             Diapers, pull-ups and boosters from {stores.length || "every"} stores, compared per piece with shipping to your province.

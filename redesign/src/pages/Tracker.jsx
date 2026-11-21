@@ -39,6 +39,13 @@ export default function Tracker({ cat, data }) {
   };
   useEffect(() => { const f = () => setOpenIdRaw(null); addEventListener("popstate", f); return () => removeEventListener("popstate", f); }, []);
   const [method, setMethod] = useState(false);
+  // links from My Supply open the tracker with a product searched: ?q=<name>#diapers. Apply once, then tidy the URL.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get("q");
+    if (!q) return;
+    set({ q: q.slice(0, 120) });
+    history.replaceState(history.state, "", location.pathname + location.hash);
+  }, []);   // eslint-disable-line
   const [sheet, setSheet] = useState(false);
   const wide = useMedia("(min-width: 1024px)");    // table instead of cards
   const rail = useMedia("(min-width: 1280px)");    // filters in a side rail instead of a sheet

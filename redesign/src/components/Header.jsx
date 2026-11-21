@@ -23,9 +23,15 @@ export default function Header({ route, data }) {
           <img src={logo} alt="The Diaper Aisle" width="200" height="193" className="sign-logo h-auto w-[120px] sm:w-[164px] lg:w-[200px]" />
         </a>
         <div className="flex min-w-0 flex-1 basis-[180px] flex-col items-start gap-3">
-          {/* a paper price tag: pointed end, punched hole, a loop of string through it */}
+          {/* a red sale tag: pointed end, punched hole, a loosely tied twine loop with two loose tails */}
           <p className="tag-wrap">
             <span className="price-tag text-sm font-bold leading-snug sm:text-base">Canadian adult diaper prices, checked daily</span>
+            <svg className="tag-string" width="64" height="58" viewBox="0 0 64 58" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M30 17 C 34 5, 48 4, 53 15 C 57 24, 49 32, 41 27 C 36 24, 33 20, 30 17" />
+              <path d="M30 17 C 22 21, 16 27, 12 33 C 8 39, 9 45, 14 47" />
+              <path d="M30 17 C 26 26, 27 36, 22 44 C 20 48, 17 51, 18 55" />
+              <circle cx="30" cy="17" r="2.6" fill="currentColor" stroke="none" />
+            </svg>
           </p>
           <p className="hidden max-w-[46ch] text-base text-brand-sky sm:block">
             Diapers, pull-ups and boosters from {stores.length || "every"} stores, compared per piece with shipping to your province.

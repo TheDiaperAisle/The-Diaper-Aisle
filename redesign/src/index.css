@@ -73,19 +73,19 @@
 .sign:hover .sign-logo, .sign:focus-visible .sign-logo { transform: rotate(1deg) scale(1.04); }
 .tag-wrap {
   position: relative; display: inline-flex; margin-left: 14px;
-  transform: rotate(-2deg); transform-origin: left center;
+  transform: rotate(-3deg); transform-origin: left center;
   filter: drop-shadow(0 2px 0 #1a1030) drop-shadow(0 6px 10px rgb(10 6 22 / 0.35));   /* follows the tag's shape */
 }
 .price-tag {
-  display: block; background: #7fc678; color: #1d1530;
+  display: block; background: #c83c38; color: #ffffff;   /* the logo's deep red; white text 5.05:1 */
   padding: 7px 16px 7px 34px; border-radius: 0 7px 7px 0;
   clip-path: polygon(15px 0, 100% 0, 100% 100%, 15px 100%, 0 50%);                              /* pointed end */
   -webkit-mask: radial-gradient(circle 4.5px at 19px 50%, transparent 96%, #000 100%);          /* punched hole */
   mask: radial-gradient(circle 4.5px at 19px 50%, transparent 96%, #000 100%);
 }
-.tag-wrap::before {   /* string: loops in from the left and through the hole */
-  content: ""; position: absolute; z-index: 1; left: -13px; top: 50%; width: 33px; height: 16px; translate: 0 -50%;
-  border: 2px solid #b6d9f3; border-right: 0; border-radius: 10px 0 0 10px; pointer-events: none;
+.tag-string {   /* twine: loops through the hole (19px in from the tag's point), knot, two loose tails */
+  position: absolute; z-index: 1; left: -34px; top: 50%; margin-top: -15px; color: #f1e6cc; pointer-events: none;
+  filter: drop-shadow(0 1px 0 rgb(10 6 22 / 0.55));
 }
 
 /* sheet / dialog motion */

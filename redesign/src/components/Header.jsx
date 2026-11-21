@@ -18,19 +18,19 @@ export default function Header({ route, data }) {
     <header className="aisle-band relative overflow-hidden bg-brand-ink text-white">
       <a href="#results" onClick={skip} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-[#1d1530]">Skip to results</a>
       <div className="relative mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-3 px-4 pb-4 pt-4 md:px-6 md:pb-5 md:pt-6 xl:px-8">
-        {/* the aisle sign: sticker logo, big wordmark in the logo's lettering, tagline on a price tag */}
-        <a href="#diapers" className="sign group flex min-w-0 items-center gap-3 rounded-2xl sm:gap-5" aria-label="The Diaper Aisle, diaper prices">
-          <img src={logo} alt="" width="136" height="131" className="sign-logo h-auto w-[84px] shrink-0 sm:w-[112px] lg:w-[136px]" />
-          <span className="flex min-w-0 flex-col items-start gap-2 sm:gap-3">
-            <span translate="no" className="wordmark font-display text-[32px] font-black uppercase leading-[0.9] sm:text-[46px] lg:text-[58px]">
-              The Diaper<br className="sm:hidden" /> Aisle
-            </span>
-            <span className="price-tag inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold sm:text-base">
-              <Icon name="tag" size={16} />
-              <span>Canadian <span className="hidden sm:inline">adult diaper </span>prices, checked daily</span>
-            </span>
-          </span>
+        {/* the logo is the heading: it already spells the name, so no text wordmark beside it */}
+        <a href="#diapers" className="sign -my-1 shrink-0 rounded-2xl sm:-my-2">
+          <img src={logo} alt="The Diaper Aisle" width="200" height="193" className="sign-logo h-auto w-[120px] sm:w-[164px] lg:w-[200px]" />
         </a>
+        <div className="flex min-w-0 flex-1 basis-[180px] flex-col items-start gap-3">
+          <p className="price-tag inline-flex items-start gap-1.5 rounded-2xl px-3 py-1.5 text-sm font-bold leading-snug sm:items-center sm:rounded-full sm:text-base">
+            <Icon name="tag" size={16} className="mt-0.5 sm:mt-0" />
+            <span>Canadian adult diaper prices, checked daily</span>
+          </p>
+          <p className="hidden max-w-[46ch] text-base text-brand-sky sm:block">
+            Diapers, pull-ups and boosters from {stores.length || "every"} stores, compared per piece with shipping to your province.
+          </p>
+        </div>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-sm" aria-live="polite">
           {data.status === "loading" && <span className="rounded-full bg-white/10 px-3 py-1.5">Loading today's prices…</span>}
           {data.status === "error" && <span className="rounded-full bg-[#a8302c] px-3 py-1.5 font-semibold">Prices could not be loaded. Reload to retry.</span>}

@@ -11,7 +11,7 @@
     "count": 28,
     "price": 26.98,
     "in_stock": true,
-    "checked": "2026-11-02"
+    "checked": "2026-11-24"
    },
    {
     "id": "6000207416237",
@@ -22,7 +22,7 @@
     "count": 28,
     "price": 26.98,
     "in_stock": true,
-    "checked": "2026-11-02"
+    "checked": "2026-11-24"
    },
    {
     "id": "6DK928QU8L7K",
@@ -33,7 +33,7 @@
     "count": 38,
     "price": 47.97,
     "in_stock": true,
-    "checked": "2026-11-02"
+    "checked": "2026-11-24"
    },
    {
     "id": "6000208734789",
@@ -44,7 +44,7 @@
     "count": 24,
     "price": 26.98,
     "in_stock": true,
-    "checked": "2026-11-02"
+    "checked": "2026-11-24"
    },
    {
     "id": "6000208736190",
@@ -55,7 +55,7 @@
     "count": 24,
     "price": 26.98,
     "in_stock": true,
-    "checked": "2026-11-02"
+    "checked": "2026-11-24"
    },
    {
     "id": "6000208734744",
@@ -66,7 +66,40 @@
     "count": 54,
     "price": 68.97,
     "in_stock": true,
-    "checked": "2026-11-02"
+    "checked": "2026-11-24"
+   },
+   {
+    "id": "6000207362908",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Bedwetting-Underwear-for-Boys-XL-95-120-lbs-63-Count/6000207362908",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Boys",
+    "size": "XL",
+    "count": 63,
+    "price": 68.97,
+    "in_stock": true,
+    "checked": "2026-11-24"
+   },
+   {
+    "id": "4G1RXBF7Z09G",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Bedwetting-Underwear-for-Girls-XL-95-120-lbs-63-Count/4G1RXBF7Z09G",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Girls",
+    "size": "XL",
+    "count": 63,
+    "price": 68.97,
+    "in_stock": true,
+    "checked": "2026-11-24"
+   },
+   {
+    "id": "6000208734735",
+    "url": "https://www.walmart.ca/en/ip/Goodnites-Boys-Nighttime-Underwear-Size-XXL-120-165-lbs-54-Ct-Select-for-More/6000208734735",
+    "title": "Huggies GoodNites Nighttime Underwear",
+    "variant": "Boys",
+    "size": "XXL",
+    "count": 54,
+    "price": 68.97,
+    "in_stock": true,
+    "checked": "2026-11-24"
    }
   ]
  }

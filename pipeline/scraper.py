@@ -347,7 +347,24 @@ def fetch_manual(store):
     return out
 
 
+# Misspellings in store titles that hide a product from the diaper filters (owner 2026-11-27: AgeComfort
+# 'FORSITE AM PM STARS MAX BREIFS' was skipped, only its samples showed)
+TITLE_TYPOS = [(r"\bbreifs?\b", lambda m: m.group(0).replace("EI", "IE").replace("ei", "ie").replace("Ei", "Ie")),
+               (r"\bdiaprs?\b|\bdiapres?\b", lambda m: "Diapers" if m.group(0)[:1].isupper() else "diapers")]
+
+
+def fix_titles(products):
+    for p in products:
+        for pat, rep in TITLE_TYPOS:
+            p["title"] = re.sub(pat, rep, p.get("title") or "", flags=re.I)
+    return products
+
+
 def fetch_store(base, via=None, store=None):
+    return fix_titles(_fetch_store(base, via, store))
+
+
+def _fetch_store(base, via=None, store=None):
     if via == "manual":
         return fetch_manual(store)
     if via == "wellca":

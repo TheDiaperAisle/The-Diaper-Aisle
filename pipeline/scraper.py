@@ -68,6 +68,10 @@ BC_SKIP = re.compile(r"cloth|wrap|cover|pocket|bib|pins|pail|change-?pad|bed-pad
                      r"sticker|frontals|deodori|laundry|pouch|clip|sleep-aid|training-pants", re.I)
 
 
+BC_PURCHASE_OPT = re.compile(r"purchase\s*option|subscri|auto-?ship|deliver(?:y|ies)\s+(?:every|frequency)", re.I)
+BC_ONE_TIME = re.compile(r"one[- ]?time", re.I)
+
+
 def _bc_pkg(v):
     """'Bag (12)' -> 'Bag of 12', 'Sample (2)'/'Trial (3)' -> 'Sample pack of 2' (wording the row parser understands)."""
     m = re.match(r"\s*(sample|trial|bag|case|pack|box)\s*\((\d+)\)\s*$", v, re.I)
@@ -156,13 +160,19 @@ def fetch_bigcommerce(base, delay=0.25):
             raise
         pid, title, crumbs, desc, img, options, pa = bc_parse_page(raw, url)
         slug = url.rstrip("/").rsplit("/", 1)[-1]
+        # 'Purchase Options' (One-Time Purchase / Ships Every 2-8 Weeks, 10% off): price the one-time purchase only
+        # (owner 2026-11-27: the subscription price was being taken). It is not a variant, so it is not kept as an option.
+        fixed = [(oid, [v for v in vals if BC_ONE_TIME.search(v[1])] or vals[:1]) for oid, name, vals in options
+                 if BC_PURCHASE_OPT.search(name) or any(BC_ONE_TIME.search(l) for _, l in vals)]
+        options = [o for o in options if o[0] not in {f[0] for f in fixed}]
+        fixed_q = "".join(f"&attribute[{oid}]={vals[0][0]}" for oid, vals in fixed)
         variants = []
-        if not options:
+        if not options and not fixed:
             pr = ((pa.get("price") or {}).get("without_tax") or {}).get("value")
             if pr:
                 variants.append({"id": pid, "price": str(pr), "available": bool(pa.get("instock") and pa.get("purchasable", True))})
         for combo in itertools.product(*[vals for _, _, vals in options]):
-            q = "&".join(f"attribute[{oid}]={vid}" for (oid, _, _), (vid, _) in zip(options, combo))
+            q = "&".join(f"attribute[{oid}]={vid}" for (oid, _, _), (vid, _) in zip(options, combo)) + fixed_q
             try:
                 d = json.loads(_get(f"{base}/remote/v1/product-attributes/{pid}?{q}", timeout=30)).get("data") or {}
             except Exception as e:  # noqa
